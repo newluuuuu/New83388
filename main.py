@@ -130,7 +130,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             # If subscription has ended, disable forwarding
             await update.message.reply_text(
-                "<b>Your Subscription Has Ended, Please contact</b> <a href=\"tg://resolve?domain=ADMIN_USERNAME\">Admin</a>",
+                "<b>Your Subscription Has Ended, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>",
                 parse_mode="HTML"
             )
             # Set forwarding to false for this specific user
@@ -140,7 +140,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # If the user is not found in the data
         logger.info(f"User {user_id} is not authorized or subscription has expired.")
         await update.message.reply_text(
-            "<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=ADMIN_USERNAME\">Admin</a>",
+            "<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>",
             parse_mode="HTML"
         )
         # Ensure forwarding is off for users without a subscription
@@ -177,7 +177,7 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             await update.message.reply_text("Usage: `/post <message / text link>`", parse_mode="Markdown")
     else:
-        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=ADMIN_USERNAME\">Admin</a>", parse_mode="HTML")
+        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", parse_mode="HTML")
 
 from datetime import datetime, timedelta  # Ensure correct imports
 
@@ -282,7 +282,7 @@ async def api_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             await update.message.reply_text("Usage: /api_id <API_ID>")
     else:
-        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=ADMIN_USERNAME\">Admin</a>", parse_mode="HTML")
+        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", parse_mode="HTML")
 
 # /hash command handler
 async def api_hash(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -305,7 +305,7 @@ async def api_hash(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             await update.message.reply_text("Usage:\n `/hash <API_HASH>`", parse_mode="Markdown")
     else:
-        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=ADMIN_USERNAME\">Admin</a>", parse_mode="HTML")
+        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", parse_mode="HTML")
 
 
 async def login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -343,7 +343,7 @@ async def login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             await update.message.reply_text("*API ID and Hash not found ❌*. Set them with `/api_id` and `/hash`", parse_mode="Markdown")
     else:
-        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=ADMIN_USERNAME\">Admin</a>", parse_mode="HTML")
+        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", parse_mode="HTML")
 
 # /otp command handler
 async def otp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -525,7 +525,7 @@ async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
     else:
         await update.message.reply_text(
-            "<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=ADMIN_USERNAME\">Admin</a>", 
+            "<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", 
             parse_mode="HTML"
         )
 
@@ -559,7 +559,7 @@ async def del_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             await update.message.reply_text("Usage: /del_group <group_link>")
     else:
-        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=ADMIN_USERNAME\">Admin</a>", parse_mode="HTML")
+        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", parse_mode="HTML")
 
 
 # User: /time command handler to set interval
@@ -588,7 +588,7 @@ async def time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             await update.message.reply_text("Usage: /time <interval_in_seconds>")
     else:
-        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=ADMIN_USERNAME\">Admin</a>", parse_mode="HTML")
+        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", parse_mode="HTML")
 
 
 
@@ -759,7 +759,7 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Notify the user that they are not authorized (expired subscription, etc.)
         await update.message.reply_text(
             "⚠️ *Your subscription has expired or you are not authorized to enable forwarding.*\n"
-            "*Please contact the* [Admin](tg://resolve?domain=ADMIN_USERNAME) *for assistance ❕*",
+            "*Please contact the* [Admin](tg://resolve?domain=devscottreal) *for assistance ❕*",
             parse_mode="Markdown"
         )
         return
@@ -927,7 +927,7 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
     else:
-        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=ADMIN_USERNAME\">Admin</a>", parse_mode="HTML")
+        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", parse_mode="HTML")
 
     # Edit the existing message if it's a callback query, otherwise send a new message
     if is_callback:
@@ -1297,7 +1297,7 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "      - Use the <code>/api_id</code> and <code>/hash</code> commands to set them up for forwarding. Ensure your API ID and API Hash are correctly configured in your user settings.\n"
         "      - If you encounter issues with logging in or setting up API keys, check that your credentials are correct and ensure you've completed all required steps.\n\n"
         
-        "💡 <b>Need more help?</b> Contact the <a href=\"tg://resolve?domain=ADMIN_USERNAME\">Admin</a> or refer to the tutorial"
+        "💡 <b>Need more help?</b> Contact the <a href=\"tg://resolve?domain=devscottreal\">Admin</a> or refer to the tutorial"
     )
 
         await query.edit_message_text(text=help_text, parse_mode='HTML', reply_markup=back_button())
