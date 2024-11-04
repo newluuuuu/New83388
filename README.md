@@ -5,7 +5,9 @@ Get your API ID AND HASH
 
 
 Firstly on your terminal run this 
-```pip install requirements.txt```
+```bash
+pip install requirements.txt
+```
 
 
 when you run (pip install requirements.txt) it will install all the modules i listed in requirements.txt file
@@ -16,14 +18,18 @@ if you dont understand any part you can chat me.
  ~ Get your telegram user id, go to main.py line 27 and put your id in ```ADMIN_IDS = ["ID_HERE"] ```
 
 the parts that says (there are mant pick one on line 142)>
+```bash
 "<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>",
-
+```
 replace my username "devscottreal" with yours, Highlight the username, right click, press "Change al Occurence"
 so it will change my user name every where.
 
 you should know now to run the script.
 make sure you are internet connected
-run ```python main.py```
+run 
+```bash
+python main.py
+```
 go and press start on your telegram bot.
 
 Once you start the bot on your keyboard type `/add your_tg_id 60`
