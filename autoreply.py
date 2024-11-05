@@ -11,9 +11,12 @@ import datetime
 import asyncio
 import json
 import logging
+from dotenv import load_dotenv
+load_dotenv()
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "devscottreal")
 
 active_clients = {}
-last_activity = {}
+last_reply_time = {}
 
 
 def load_user_data():
@@ -42,7 +45,7 @@ async def set_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id).strip()
     from main import is_authorized
     if not await is_authorized(user_id):
-        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", parse_mode="HTML")
+        await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
         return
     
     try:
@@ -61,10 +64,11 @@ async def set_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         data["users"][user_id]["keywords"][keyword] = response
         save_user_data(data)
 
-        await update.message.reply_text(f"Keyword '{keyword}' has been set with the response '{response}'.")
+        await update.message.reply_text(f"Keyword:\n<pre>{keyword}</pre> has been set with the response:\n <pre>{response}</pre>", parse_mode="HTML")
     
     except (IndexError, ValueError):
-        await update.message.reply_text("Please use the correct format: /set_word <keyword> | <response>")
+        await update.message.reply_text("Please use the correct format:\n `/set_word keyword | response`", parse_mode="Markdown")
+
 
 
 async def keyword_response(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -72,7 +76,7 @@ async def keyword_response(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     # Check if the user is authorized
     from main import is_authorized
     if not await is_authorized(user_id):
-        await update.message.reply_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", parse_mode="HTML")
+        await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
         return
 
     # Load user data
@@ -110,7 +114,7 @@ async def keyword_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     # Check if the user is authorized
     from main import is_authorized
     if not await is_authorized(user_id):
-        await update.callback_query.edit_message_text("<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", parse_mode="HTML")
+        await update.callback_query.edit_message_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
         return
 
     # Load user data
@@ -168,7 +172,7 @@ async def reply_with_telethon(user_id, message, context=None):
             print(f"User {user_id} is not authorized. Ask them to log in.")
             return
 
-        recipient_id = user_data.get("recipient_id")  # Assuming recipient info is stored
+        recipient_id = user_data.get("recipient_id")  
         await client.send_message(recipient_id, message)
 
     except Exception as e:
@@ -229,11 +233,9 @@ async def start_telethon_client(user_id, context=None):
             save_user_data(data)
             return
 
-        # If the session is still valid, disconnect and wait 3 seconds
         await client.disconnect()
         await asyncio.sleep(3)
 
-        # Reconnect and start handling new messages
         await client.start()
 
     except Exception as e:
@@ -253,37 +255,39 @@ async def start_telethon_client(user_id, context=None):
         # Log the received message
         print(f"Received message in {chat_name}")
 
-        # Check if the 10-second cooldown period has passed for this chat
-        if chat_id in last_activity and (asyncio.get_event_loop().time() - last_activity[chat_id]) < 10:
-            print(f"Skipping message from {chat_name} due to 10-second cooldown.")
-            return
-
-        # Update last activity time for this chat
-        last_activity[chat_id] = asyncio.get_event_loop().time()
-
-        # Fetch keywords and match option
+        # Fetch user-specific keywords and match option
         keywords = user_data.get("keywords", {})
         match_option = user_data.get("match_option", "exact").lower()
 
         # Check if the message matches any keywords
         for keyword, response in keywords.items():
-            if (match_option == "exact" and message_text == keyword) or \
-               (match_option == "partial" and keyword in message_text) or \
-               (match_option == "case_insensitive" and keyword.lower() in message_text.lower()):
-                
+            # Check if the message matches the keyword based on the match option
+            if (
+                (match_option == "exact" and message_text.lower() == keyword.lower()) or
+                (match_option == "partial" and keyword in message_text) or
+                (match_option == "case_insensitive" and keyword.lower() in message_text.lower())
+            ):
                 print(f"Keyword match found in {chat_name}: {keyword}")
 
-                # Wait 1 seconds before replying
+                # If the last reply was within 10 seconds, skip replying
+                if chat_id in last_reply_time and (asyncio.get_event_loop().time() - last_reply_time[chat_id]) < 10:
+                    print(f"Skipping reply in {chat_name} due to 10-second cooldown.")
+                    return
+
                 await asyncio.sleep(1)
+                
                 if response.startswith("https://t.me/"):
-                    await send_message_from_link(client,event, response)
+                    await send_message_from_link(client, event, response)
                 else:
                     await event.reply(response)
+                
                 print(f"Replied with: {response}")
 
-                # After replying, wait 10 seconds before allowing another keyword match from this chat
+                last_reply_time[chat_id] = asyncio.get_event_loop().time()
+                
                 await asyncio.sleep(10)
-
+                
+                return
     try:
         print(f"Telethon client started successfully for user {user_id}")
         user_data["client_active"] = True
