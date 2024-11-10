@@ -1,4 +1,3 @@
-
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
@@ -31,13 +30,16 @@ def load_config():
     try:
         with open('config.json', 'r') as f:
             config = json.load(f)
-            if "authorized_users" not in config:
-                config["authorized_users"] = {}  
+            if "users" not in config:
+                config["users"] = {}  
             return config
     except FileNotFoundError:
-        return {"authorized_users": {}}
+        # Default config structure
+        config = {"users": {}}
+        save_config(config)  # Create the file with default structure
+        return config
     except json.JSONDecodeError:
-        return {"authorized_users": {}}
+        return {"users": {}}
 
 def save_config(config):
     with open('config.json', 'w') as f:
@@ -55,13 +57,12 @@ def load_user_data():
     except json.JSONDecodeError:
         return {"users": {}}  
 
-
 def save_user_data(data):
     with open('config.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
-# Logging setup
+
 logging.basicConfig(
-    level=logging.INFO,  # Logging level
+    level=logging.INFO,  
     format='%(asctime)s - %(levelname)s - %(message)s',
 )
 logger = logging.getLogger(__name__)
@@ -70,18 +71,18 @@ async def is_authorized(user_id: str) -> bool:
     data = load_user_data()
     if user_id in data["users"]:
         expiry_date = data["users"][user_id].get("expiry_date")
-        
+
         if expiry_date:
             try:
-               
+
                 expiry_datetime = datetime.strptime(expiry_date, '%Y-%m-%d %H:%M:%S')
                 logger.info(f"Parsed expiry date for user {user_id}: {expiry_datetime}")
-                
+
                 if expiry_datetime > datetime.now():
                     return True
                 else:
                     logger.info(f"Subscription for user {user_id} has expired.")
-                    data["users"][user_id]["forwarding_on"] = False #just disables forwarding if on
+                    data["users"][user_id]["forwarding_on"] = False 
                     save_user_data(data)
             except ValueError as e:
                 logger.error(f"Date parsing error for user {user_id}: {e}")
@@ -89,20 +90,19 @@ async def is_authorized(user_id: str) -> bool:
             logger.info(f"No expiry date found for user {user_id}.")
     else:
         logger.info(f"User {user_id} not found in the database.")
-    
+
     return False
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id).strip() 
     logger.info(f"Checking subscription for user: {user_id}")
 
-    # Load the user data from config.json
     data = load_user_data()
 
     if user_id in data["users"]:
         expiry_date = data["users"][user_id]["expiry_date"]
         try:
-            # Parse the expiry date
+
             expiry_datetime = datetime.strptime(expiry_date, '%Y-%m-%d %H:%M:%S')
             time_left = (expiry_datetime - datetime.now()).days
             formatted_expiry = expiry_datetime.strftime('%Y-%m-%d %H:%M:%S')  
@@ -111,9 +111,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             logger.error(f"Date parsing error: {e}")
             await update.message.reply_text("There was an error processing your subscription. Please contact admin.")
             return
-        
+
         if time_left >= 0:
-            # If subscription is still active
+
             keyboard = [
                 [InlineKeyboardButton("Help ❕", callback_data='help')],
                 [InlineKeyboardButton("Video 🎥", url='https://youtu.be/8naENmP3rg4?si=K1e-Vf0mxQJL-SmD')],
@@ -128,47 +128,41 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 parse_mode="HTML"
             )   
         else:
-            # If subscription has ended, disable forwarding
+
             await update.message.reply_text(
                 f"<b>Your Subscription Has Ended, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>",
                 parse_mode="HTML"
             )
-            # Set forwarding to false for this specific user
+
             data["users"][user_id]["forwarding_on"] = False
             save_user_data(data)
     else:
-        # If the user is not found in the data
+
         logger.info(f"User {user_id} is not authorized or subscription has expired.")
         await update.message.reply_text(
             f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>",
             parse_mode="HTML"
         )
-        # Ensure forwarding is off for users without a subscription
+
         if user_id in data["users"]:
             data["users"][user_id]["forwarding_on"] = False
         save_user_data(data)
 
-        
-
-
-
-# User: /post command handler
 async def post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)  
 
     if await is_authorized(user_id):
         if context.args:
-            post_message = ' '.join(context.args)  # Join all arguments into a single message
-            
-            # Load user data from config.json
+            post_message = ' '.join(context.args)  
+
             data = load_user_data()
 
             if user_id in data["users"]:
                 try:
-                    # Save the post message for the user
+
                     data["users"][user_id]["post_message"] = post_message
-                    save_user_data(data)  # Save the updated data back to config.json
-                    
+                    save_user_data(data)  
+
                     await update.message.reply_text("*Message saved for forwarding ✅*", parse_mode="Markdown")
                 except Exception as e:
                     await update.message.reply_text(f"Failed to save the message due to an error: {e}")
@@ -179,25 +173,22 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
 
-from datetime import datetime, timedelta  # Ensure correct imports
+from datetime import datetime, timedelta  
 
 async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id_from_message = str(update.message.from_user.id)  # Get the user ID of the message sender
+    user_id_from_message = str(update.message.from_user.id)  
 
-    if user_id_from_message in ADMIN_IDS:  # Check if the sender is an admin
-        data = load_user_data()  # Load user data from JSON
+    if user_id_from_message in ADMIN_IDS:  
+        data = load_user_data()  
         try:
             user_id = str(context.args[0])
             days = int(context.args[1])
 
-            # Calculate expiry date
             expiry_date = datetime.now() + timedelta(days=days)
 
-            # Ensure "users" key exists
             if "users" not in data:
                 data["users"] = {}
 
-            # Default user structure template for new users
             default_user_data = {
                 "expiry_date": expiry_date.strftime('%Y-%m-%d %H:%M:%S'),
                 "api_id": "",
@@ -211,55 +202,52 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "forwarding_on": False
             }
 
-            # Check if the user already exists in the data
             if user_id in data["users"]:
                 data["users"][user_id]["expiry_date"] = expiry_date.strftime('%Y-%m-%d %H:%M:%S')
             else:
                 data["users"][user_id] = default_user_data
 
-            # Save the updated user data back to the JSON file
             save_user_data(data)
 
             await update.message.reply_text(f"User `{user_id}` added with expiry date: {expiry_date.strftime('%Y-%m-%d %H:%M:%S')}", parse_mode="Markdown")
-        
+
         except IndexError:
             await update.message.reply_text("*Please provide both user ID and number of days.*\n Usage: `/add <user_id> <days>`", parse_mode="Markdown")
-        
+
         except ValueError:
             await update.message.reply_text("Invalid input. Please make sure you're entering a valid number of days.")
-        
+
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
     else:
-        # Reply with a message if the user is not an admin
+
         await update.message.reply_text("*You do not have permission to use this command ❌*", parse_mode="Markdown")
 
-
-
-# /remove command to remove users
 async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id_from_message = str(update.message.from_user.id)  # Get the user ID of the message sender
+    user_id_from_message = str(update.message.from_user.id)  
 
-    if user_id_from_message in ADMIN_IDS:  # Check if the sender is an admin
-        data = load_user_data()  # Load user data from JSON
+    if user_id_from_message in ADMIN_IDS:  
+        data = load_user_data()  
         try:
-            user_id = str(context.args[0])  # Convert user_id to string to match your data structure
-            
-            # Check if the user exists in the 'users' section
+            user_id = str(context.args[0])  
+
             if user_id in data["users"]:
-                del data["users"][user_id]  # Remove the user from 'users'
-                save_user_data(data)  # Save the updated data back to JSON
-                
-                await update.message.reply_text(f"User {user_id} removed.")
+
+                await stop_telethon_client(user_id)
+
+                del data["users"][user_id]
+                save_user_data(data)  
+
+                await update.message.reply_text(f"User {user_id} removed and Telethon client stopped.")
             else:
                 await update.message.reply_text("User not found.")
         except IndexError:
             await update.message.reply_text("Please provide the user ID. Usage: /remove <user_id>")
-        
+
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
     else:
-        # Reply with a message if the user is not an admin
+
         await update.message.reply_text("You do not have permission to use this command.")
 
 async def api_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -268,15 +256,12 @@ async def api_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if len(context.args) == 1:
             api_id = context.args[0]
 
-            # Load user data
             data = load_user_data()
 
-            # Update API ID for the user
             if user_id not in data["users"]:
                 data["users"][user_id] = {}  
             data["users"][user_id]["api_id"] = api_id
 
-            # Save updated data
             save_user_data(data)
             await update.message.reply_text("*API ID saved✅*", parse_mode="Markdown")
         else:
@@ -284,22 +269,18 @@ async def api_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
 
-# /hash command handler
 async def api_hash(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id) 
     if await is_authorized(user_id):
         if len(context.args) == 1:
             api_hash = context.args[0]
 
-            # Load user data
             data = load_user_data()
 
-            # Update API Hash for the user
             if user_id not in data["users"]:
                 data["users"][user_id] = {}  
             data["users"][user_id]["api_hash"] = api_hash
 
-            # Save updated data
             save_user_data(data)
             await update.message.reply_text("*API Hash saved ✅*", parse_mode="Markdown")
         else:
@@ -307,11 +288,10 @@ async def api_hash(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
 
-
 async def login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id) 
     if await is_authorized(user_id):
-        # Load user data from JSON
+
         data = load_user_data()
         user_data = data["users"].get(user_id, {})
 
@@ -345,7 +325,6 @@ async def login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
 
-# /otp command handler
 async def otp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)  
     otp_parts = context.args  
@@ -391,7 +370,7 @@ async def two_fa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     password = context.args[0] if context.args else None
 
     if password:
-        # Load user data from JSON
+
         data = load_user_data()
         user_data = data["users"].get(user_id, {})
 
@@ -408,16 +387,15 @@ async def two_fa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             except Exception as e:
                 await update.message.reply_text(f"*Login failed: {e} ❌*", parse_mode="Markdown")
             finally:
-                # Ensure the client is disconnected
+
                 await client.disconnect()
         else:
             await update.message.reply_text("API ID and Hash not found. Set them with /api_id and /hash.")
     else:
         await update.message.reply_text("Usage: /2fa <password>")
 
-# /logout command handler
 async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Determine if the update is a callback query or a command
+
     if update.callback_query:
         message = update.callback_query.message
     else:
@@ -427,9 +405,8 @@ async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("Unable to process the request.")
         return
 
-    user_id = str(message.from_user.id)  # Convert user ID to string for JSON key compatibility
+    user_id = str(message.from_user.id)  
 
-    # Load user data from JSON
     data = load_user_data()
     user_data = data["users"].get(user_id, {})
 
@@ -438,22 +415,21 @@ async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if api_id and api_hash:
         try:
-            # Log out and remove session file
+
             client = TelegramClient(f'{user_id}.session', api_id, api_hash)
-            
+
             try:
                 await client.connect()
             except Exception as e:
                 await message.reply_text(f"Failed to connect: {e}")
-                return  # Exit if connection fails
+                return  
 
             try:
                 await client.log_out()
             except Exception as e:
                 await message.reply_text(f"Failed to log out: {e}")
-                return  # Exit if logout fails
+                return  
 
-            # Remove session file
             session_file = f'{user_id}.session'
             try:
                 if os.path.exists(session_file):
@@ -469,10 +445,8 @@ async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await message.reply_text("API credentials not found. Please log in first.")
 
-
-# /add_group command handler
 async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = str(update.message.from_user.id)  # Store user ID as string in JSON
+    user_id = str(update.message.from_user.id)  
 
     if await is_authorized(user_id):
         message_text = update.message.text
@@ -482,19 +456,17 @@ async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await update.message.reply_text("You can add a maximum of 50 group links at a time.")
             return
 
-        # Load the config from config.json
         with open("config.json", "r") as f:
             config_data = json.load(f)
 
         user_data = config_data["users"].get(user_id, {})
-        user_groups = user_data.get("groups", [])  # Get user's groups or empty list
+        user_groups = user_data.get("groups", [])  
 
         added_groups = []
         already_in_list = []
 
-        # Loop through each group link and add it if it starts with https://t.me/ and is not already in the user's list
         for group_link in group_links:
-            group_link = group_link.strip()  # Remove extra spaces
+            group_link = group_link.strip()  
             if group_link.startswith("https://t.me/"):
                 if group_link and group_link not in user_groups:
                     user_groups.append(group_link)
@@ -502,124 +474,121 @@ async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 elif group_link in user_groups:
                     already_in_list.append(group_link)
             else:
-                # Optionally, you can notify the user if the link does not start with https://t.me/
+
                 await update.message.reply_text(f"Link '{group_link}' is not a valid Telegram link.")
 
-        user_data["groups"] = user_groups  # Update the user's groups
-        config_data["users"][user_id] = user_data  # Update the user's data
+        user_data["groups"] = user_groups  
+        config_data["users"][user_id] = user_data  
 
-        # Save the updated config back to config.json
         with open("config.json", "w") as f:
             json.dump(config_data, f, indent=4)
 
-        # Prepare the response
         if added_groups:
             added_groups_message = "\n".join(added_groups)
-            await update.message.reply_text(f"The following groups have been added for message forwarding:\n{added_groups_message}")
+            await update.message.reply_text(f"The following groups have been added for message forwarding:\n`{added_groups_message}`",parse_mode="Markdown")
         if already_in_list:
             already_in_list_message = "\n".join(already_in_list)
-            await update.message.reply_text(f"The following groups were already in your forwarding list:\n{already_in_list}")
+            await update.message.reply_text(f"The following groups were already in your forwarding list:\n`{already_in_list}`", parse_mode="Markdown")
 
         if not added_groups and not already_in_list:
             await update.message.reply_text("Invalid Format❗\nUsage:\n`/add_group\n<link1>\n<link2>`", parse_mode="Markdown")
-        
+
     else:
         await update.message.reply_text(
-            f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", 
+            "<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", 
             parse_mode="HTML"
         )
 
-
-# /del_group command handler
 async def del_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    group_id = context.args[0] if context.args else None
-    user_id = str(update.message.from_user.id)  # Store user ID as string in JSON
+    user_id = str(update.message.from_user.id)
 
-    if await is_authorized(user_id):  # Check if user is authorized
-        if group_id:
-            # Load the config from config.json
+    if await is_authorized(user_id):
+        if context.args:
+            group_ids = context.args  
+            removed_groups = []
+            not_found_groups = []
+
             with open("config.json", "r") as f:
                 config_data = json.load(f)
 
             user_data = config_data["users"].get(user_id, {})
-            user_groups = user_data.get("groups", [])  # Get user's groups or empty list
+            user_groups = user_data.get("groups", [])
 
-            if group_id in user_groups:
-                user_groups.remove(group_id)
-                user_data["groups"] = user_groups  # Update the user's groups
-                config_data["users"][user_id] = user_data  # Update the user's data
+            for group_id in group_ids:
+                if group_id in user_groups:
+                    user_groups.remove(group_id)
+                    removed_groups.append(group_id)
+                else:
+                    not_found_groups.append(group_id)
 
-                # Save back to config.json
-                with open("config.json", "w") as f:
-                    json.dump(config_data, f, indent=4)
-                
-                await update.message.reply_text(f"Group {group_id} removed from message forwarding.")
-            else:
-                await update.message.reply_text("Group not found in your list.")
-        else:
-            await update.message.reply_text("Usage: /del_group <group_link>")
-    else:
-        await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
+            user_data["groups"] = user_groups
+            config_data["users"][user_id] = user_data
 
-
-# User: /time command handler to set interval
-import json
-
-# /time command handler
-async def time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    interval = int(context.args[0]) if context.args else None
-    user_id = str(update.message.from_user.id)  # Store user ID as string in JSON
-
-    if await is_authorized(user_id):  # Check if user is authorized
-        if interval and interval > 0:
-            # Load the config from config.json
-            with open("config.json", "r") as f:
-                config_data = json.load(f)
-
-            user_data = config_data["users"].get(user_id, {})
-            user_data["interval"] = interval  # Update the user's interval setting
-            config_data["users"][user_id] = user_data  # Update the user's data
-
-            # Save back to config.json
             with open("config.json", "w") as f:
                 json.dump(config_data, f, indent=4)
-            
+
+            response = ""
+            if removed_groups:
+                response += f"Removed groups:\n`{' '.join(removed_groups)}`\n"
+            if not_found_groups:
+                response += f"Groups not found:\n`{' '.join(not_found_groups)}`."
+
+            await update.message.reply_text(response, parse_mode="Markdown")
+        else:
+            await update.message.reply_text("Usage:\n /del_group <group1> <group2> ...")
+    else:
+        await update.message.reply_text(
+            "<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", 
+            parse_mode="HTML"
+        )
+
+import json
+
+async def time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    interval = int(context.args[0]) if context.args else None
+    user_id = str(update.message.from_user.id)  
+
+    if await is_authorized(user_id):  
+        if interval and interval > 0:
+
+            with open("config.json", "r") as f:
+                config_data = json.load(f)
+
+            user_data = config_data["users"].get(user_id, {})
+            user_data["interval"] = interval  
+            config_data["users"][user_id] = user_data  
+
+            with open("config.json", "w") as f:
+                json.dump(config_data, f, indent=4)
+
             await update.message.reply_text(f"*Message forwarding interval set to {interval} seconds ✅*", parse_mode="Markdown")
         else:
             await update.message.reply_text("Usage: /time <interval_in_seconds>")
     else:
         await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
 
-
-
-# /off command handler
 async def off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)
-    
-    # Load configuration from config.json
+
     with open("config.json", "r") as f:
         config_data = json.load(f)
-    
-    # Retrieve user data
+
     user_data = config_data["users"].get(user_id, {})
     if "forwarding_on" in user_data and user_data["forwarding_on"]:
-        # Disable forwarding for this user
+
         user_data["forwarding_on"] = False
-        
-        # Save the updated configuration
+
         with open("config.json", "w") as f:
             json.dump(config_data, f, indent=4)
-        
-        # Remove the job from the scheduler
+
         for job in scheduler.get_jobs():
             if job.args[0] == user_id:
                 scheduler.remove_job(job.id)
                 break
-        
+
         await update.message.reply_text("*Message forwarding has been disabled ❌*", parse_mode="Markdown")
     else:
         await update.message.reply_text("*Message forwarding is already disabled or not set up for you ❗*", parse_mode="Markdown")
-
 
 def extract_chat_and_message_id(post_message: str):
     """
@@ -629,9 +598,9 @@ def extract_chat_and_message_id(post_message: str):
     if post_message.startswith("https://t.me/"):
         parts = post_message.replace("https://t.me/", "").split("/")
         if len(parts) == 2 and parts[1].isdigit():
-            chat_username = parts[0]  # 'chatusername'
-            message_id = parts[1]  # '12345'
-            return chat_username, int(message_id)  # Ensure message_id is an integer
+            chat_username = parts[0]  
+            message_id = parts[1]  
+            return chat_username, int(message_id)  
     return None, None
 
 def extract_group_and_topic_id(group_link: str):
@@ -641,78 +610,72 @@ def extract_group_and_topic_id(group_link: str):
     """
     if group_link.startswith("https://t.me/"):
         parts = group_link.replace("https://t.me/", "").split("/")
-        group_username = parts[0]  # Group username
+        group_username = parts[0]  
 
-        # Extract topic ID if available
         topic_id = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else None
 
         return group_username, topic_id
     return None, None
 
-
-
-
 async def forward_messages(user_id: str) -> None:
     try:
-        # Load configuration from config.json
+
         with open("config.json", "r") as f:
             config_data = json.load(f)
 
-        # Retrieve user data
         user_data = config_data["users"].get(user_id, {})
         api_id = user_data.get('api_id', '')
         api_hash = user_data.get('api_hash', '')
         post_message = user_data.get('post_message', '')
-        interval = user_data.get('interval', 60)  # Interval in seconds
+        interval = user_data.get('interval', 60)  
         user_groups = user_data.get('groups', [])
         forwarding_on = user_data.get('forwarding_on', False)
 
         if not forwarding_on:
             print("Forwarding is disabled for this user.")
-            return  # Stop if forwarding is disabled
-        
+            return  
+
         if not user_groups:
             print("No groups found for this user.")
             return
 
         async with TelegramClient(f'{user_id}.session', api_id, api_hash) as client:
-            # Check if user is authorized
+
             if not await client.is_user_authorized():
                 print("User is not authorized.")
                 return
 
-            # Iterate over all user groups and try sending messages
             for group_link in user_groups:
                 retry_count = 2
                 while retry_count > 0:
                     try:
-                        # Extract group and topic IDs from group link
+
                         to_peer, topic_id = extract_group_and_topic_id(group_link)
                         if not to_peer:
                             print(f"Invalid group link: {group_link}")
                             break
 
                         if post_message.startswith("https://t.me/"):
-                            # Handle Telegram message link
+
                             from_peer, message_id = extract_chat_and_message_id(post_message)
                             group_parts = group_link.replace("https://t.me/", "").split("/")
-                            to_peer = group_parts[0]  # Group username
+                            to_peer = group_parts[0]  
                             topic_ids = group_parts[1] if len(group_parts) > 1 and group_parts[1].isdigit() else None
 
                             if from_peer and message_id:
-                                # Resolve the chat entity
+
                                 target_group = await client.get_entity(to_peer)
 
                                 if topic_ids:
-                                    # Forward message to the specific topic discussion
+
                                     await client(functions.messages.ForwardMessagesRequest(
                                         from_peer=from_peer,
                                         id=[message_id],
                                         to_peer=target_group,
-                                        top_msg_id=int(topic_ids)  # Use the topic ID in the forwarding request
+                                        top_msg_id=int(topic_ids)  
                                     ))
                                 else:
-                                    # Forward message to the group without a topic
+
                                     await client(functions.messages.forwardMessagesRequest(
                                         from_peer=from_peer,
                                         id=[message_id],
@@ -724,47 +687,42 @@ async def forward_messages(user_id: str) -> None:
                                 print(f"Invalid Telegram message link: {post_message}")
 
                         else:
-                            # Send a custom post message to the group (with or without topic)
+
                             target_group = await client.get_entity(to_peer)
 
                             if topic_id is not None:
-                                # Send message to a specific topic using 'reply_to'
+
                                 await client.send_message(target_group, post_message, reply_to=int(topic_id))
                             else:
-                                # Send message to the general group
+
                                 await client.send_message(target_group, post_message)
 
                             print(f"Message sent to group {group_link}.")
 
-                        break  # Break the retry loop on success
+                        break  
                     except Exception as e:
                         print(f"Error forwarding message to group {group_link}: {e}")
                         retry_count -= 1
-                        await asyncio.sleep(1)  # Wait before retrying
+                        await asyncio.sleep(1)  
 
             print(f"All messages sent. Disconnecting client.")
-        
-        # Wait for the next interval before reconnecting and sending again
-        await asyncio.sleep(interval)  # Delay the next round of messages
+
+        await asyncio.sleep(interval)  
 
     except Exception as e:
         print(f"An error occurred in forward_messages: {e}")
 
-
-
-        
 async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)
     if not await is_authorized(user_id):
-        # Notify the user that they are not authorized (expired subscription, etc.)
+
         await update.message.reply_text(
             "⚠️ *Your subscription has expired or you are not authorized to enable forwarding.*\n"
             "*Please contact the* [Admin](tg://resolve?domain={ADMIN_USERNAME}) *for assistance ❕*",
             parse_mode="Markdown"
         )
         return
-    
-    # Load user data
+
     data = load_user_data()
     user_data = data["users"].get(user_id, {})
 
@@ -775,7 +733,6 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("*Forwarding cannot be toggled when Auto-reply is active ❌*", parse_mode="Markdown")
         return
 
-    # Check for missing keys or interval less than 15 seconds
     if missing_keys:
         await update.message.reply_text(
             f"*Please ensure the following keys are set before enabling forwarding:* ```{', '.join(missing_keys)}```",
@@ -805,13 +762,12 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await update.message.reply_text("*Your session was terminated. Please log in again ❌*", parse_mode="Markdown")
             return
 
-        # Enable forwarding for this user
         data["users"][user_id]["forwarding_on"] = True
         save_user_data(data)
 
         for group_link in user_data.get('groups', []):
             try:
-                # Extract group and topic IDs from group link
+
                 to_peer, topic_id = extract_group_and_topic_id(group_link)
                 if not to_peer:
                     print("Invalid group link.")
@@ -819,14 +775,14 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
                 post_message = user_data['post_message']
                 if post_message.startswith("https://t.me/"):
-                    # Handle Telegram message link
+
                     from_peer, message_id = extract_chat_and_message_id(post_message)
                     group_parts = group_link.replace("https://t.me/", "").split("/")
-                    to_peer = group_parts[0]  # Group username
+                    to_peer = group_parts[0]  
                     topic_ids = group_parts[1] if len(group_parts) > 1 and group_parts[1].isdigit() else None
-                              
+
                     if from_peer and message_id:
-                                    # Resolve the chat entity
+
                         target_group = await client.get_entity(to_peer)
 
                         if topic_ids:
@@ -834,12 +790,11 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                                             from_peer=from_peer,
                                             id=[message_id],
                                             to_peer=target_group,
-                                            top_msg_id=int(topic_ids)  # Use the topic ID in the forwarding request
+                                            top_msg_id=int(topic_ids)  
                                         ))
-                                    
-                            
+
                         else:
-                             
+
                             await client(functions.messages.ForwardMessagesRequest(
                                     from_peer=from_peer,
                                     id=[message_id],
@@ -849,33 +804,29 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                         print(f"Message forwarded to group {group_link}.")
 
                 else:
-                                # Send the custom post message to the group (with or without topic)
+
                                 target_group = await client.get_entity(to_peer)
 
                                 if topic_id is not None:
-                                    # Send message to a specific topic using 'reply_to'
+
                                     await client.send_message(target_group, post_message, reply_to=int(topic_id))
                                 else:
-                                    # Send message to the general group
+
                                     await client.send_message(target_group, post_message)
 
                                 print(f"Message sent to group {group_link}.")
-                                      
-                           
+
             except Exception as e:
                 print(f"Error sending initial message to group {group_link}: {e}")
-       
-        # Check if the scheduler is running before starting it
+
         if not scheduler.running:
             scheduler.start()
 
-        # Start forwarding messages using scheduler
         job_exists = any(job.args[0] == user_id for job in scheduler.get_jobs())
         if not job_exists:
             scheduler.add_job(forward_messages, 'interval', seconds=user_data["interval"], args=[user_id], max_instances=5)
 
         await update.message.reply_text("*Message forwarding is now enabled ✅*", parse_mode="Markdown")
-        
 
     except Exception as e:
         print(f"An error occurred while checking your session: {e}")
@@ -884,10 +835,8 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if client.is_connected():
             await client.disconnect()
 
-
-
 async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Determine if the update is a callback query or a command
+
     if update.callback_query:
         message = update.callback_query.message
         user_id = str(update.callback_query.from_user.id)
@@ -896,8 +845,7 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         message = update.message
         user_id = str(update.message.from_user.id)
         is_callback = False
-    
-   
+
     with open("config.json", "r") as f:
         config_data = json.load(f)
     if await is_authorized(user_id):
@@ -912,13 +860,10 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             group_info = "No Group has been added"
 
-        
-        # Format the settings message
         settings_text = (f"*Your Settings*\n\n"
                         f"*- Groups Added: {group_count}*\n"
                         f"*- Interval: {interval} seconds*")
-        
-        # Create the keyboard
+
         keyboard = [
             [InlineKeyboardButton("My Post 📝", callback_data='my_post'), InlineKeyboardButton("My Groups 👥 ", callback_data='my_groups')],
             [InlineKeyboardButton("Add Group ➕ ", callback_data='add_group'), InlineKeyboardButton("Remove Group ❌", callback_data='remove_group')],
@@ -929,75 +874,66 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
 
-    # Edit the existing message if it's a callback query, otherwise send a new message
     if is_callback:
         await message.edit_text(settings_text, reply_markup=reply_markup, parse_mode="Markdown")
     else:
         await message.reply_text(settings_text, reply_markup=reply_markup, parse_mode="Markdown")
 
 async def my_posts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Determine whether the update is from a command or a callback query
+
     if update.callback_query:
-        # Called via a button (callback query)
+
         user_id = str(update.callback_query.from_user.id)
         message = update.callback_query.message
         is_callback = True
     else:
-        # Called via a command (normal message)
+
         user_id = str(update.message.from_user.id)
         message = update.message
         is_callback = False
-    
-    # Load user settings from config.json
+
     with open("config.json", "r") as f:
         config_data = json.load(f)
 
-    # Retrieve the user's post_message
     user_data = config_data["users"].get(user_id, {})
     post_message = user_data.get('post_message', '')
 
-    # Check if the user has set a post_message
     if post_message:
         message_text = f"*Your Post Message:*\n\n`{post_message}`\n\n *You can use* `/postset` *to check your post*"
     else:
         message_text = "*No post message found*"
 
-    # Create the keyboard with a back button
     keyboard = [
         [InlineKeyboardButton("Back 🔙", callback_data='settings')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Respond based on whether it's a command or a callback query
     if is_callback:
-        # Edit the message for a callback query
+
         await message.edit_text(message_text, reply_markup=reply_markup, parse_mode="Markdown")
     else:
-        # Send a new message for a command
+
         await message.reply_text(message_text, reply_markup=reply_markup, parse_mode="Markdown")
 
 async def my_groups(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Determine whether the update is from a command or a callback query
+
     if update.callback_query:
-        # Called via a button (callback query)
+
         user_id = str(update.callback_query.from_user.id)
         message = update.callback_query.message
         is_callback = True
     else:
-        # Called via a command (normal message)
+
         user_id = str(update.message.from_user.id)
         message = update.message
         is_callback = False
-    
-    # Load user settings from config.json
+
     with open("config.json", "r") as f:
         config_data = json.load(f)
 
-    # Retrieve the user's groups
     user_data = config_data["users"].get(user_id, {})
     user_groups = user_data.get('groups', [])
 
-    # Check if the user has added any groups
     if user_groups:
         group_count = len(user_groups)
         group_list = "\n".join([f"{idx+1}. `{group}`" for idx, group in enumerate(user_groups)])
@@ -1005,20 +941,17 @@ async def my_groups(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         message_text = "*No groups added*"
 
-    # Create the keyboard with a back button
     keyboard = [
         [InlineKeyboardButton("Back 🔙", callback_data='settings')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Respond based on whether it's a command or a callback query
     if is_callback:
-        # Edit the message for a callback query
+
         await message.edit_text(message_text, reply_markup=reply_markup, parse_mode="Markdown")
     else:
-        # Send a new message for a command
-        await message.reply_text(message_text, reply_markup=reply_markup, parse_mode="Markdown")
 
+        await message.reply_text(message_text, reply_markup=reply_markup, parse_mode="Markdown")
 
 async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
@@ -1028,25 +961,21 @@ async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         [InlineKeyboardButton("Settings ⚙️", callback_data='settings')],
         [InlineKeyboardButton("Auto Reply ⚙️", callback_data='auto_reply')]
     ]
-    
+
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if update.message:
-        # If it's triggered by a command (like /start), use message.reply_text
+
         await update.message.reply_text("DEVSCOTT Main Menu", reply_markup=reply_markup)
     elif update.callback_query:
-        # If it's triggered by a callback query (like the "back" button), use query.edit_message_text
+
         query = update.callback_query
         await query.edit_message_text("DEVSCOTT Main Menu", reply_markup=reply_markup)
 
-
-
-# Back to Menu Button Handler
 async def back_to_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()  # Acknowledge the button press
+    await query.answer()  
 
-    # Call the main menu function to display the menu again
     await main_menu(update, context)
 
 def get_user_keywords(user_data):
@@ -1056,14 +985,13 @@ def get_user_keywords(user_data):
     if not keywords:
         return "You haven't set any keywords yet."
 
-    # Create a formatted string to display keywords and their responses
     response_text = "<b>Here are your keywords and responses:</b>\n\n"
     response_text += f"<b>Matching Option:</b> {match_option.capitalize()}\n\n"
     response_text += "<b>Keyword</b> ➡️ <b>Response</b>\n"
     response_text += "=====================\n"
 
     for keyword, response in keywords.items():
-        response_text += f"<code>{keyword}</code> ➡️ {response}\n"
+        response_text += f"<code>{keyword}</code> ➡️ <code>{response}</code>\n"
 
     return response_text
 
@@ -1071,22 +999,19 @@ async def keywords_command(update, context):
     """
     Command handler for /keywords command or callback query. Displays the user's keywords and responses.
     """
-    # Check if this was triggered by a callback query
+
     if update.callback_query:
         query = update.callback_query
-        user_id = str(query.from_user.id)  # user_id from callback query
-        await query.answer()  # Acknowledge the callback query
+        user_id = str(query.from_user.id)  
+        await query.answer()  
     else:
-        user_id = str(update.message.from_user.id)  # user_id from message
+        user_id = str(update.message.from_user.id)  
 
-    # Load user data
     data = load_user_data()
     user_data = data["users"].get(user_id, {})
 
-    # Prepare the response text
     response_text = get_user_keywords(user_data)
 
-    # Create buttons to interact (e.g., go back, add more keywords, etc.)
     keyboard = [
         [InlineKeyboardButton("Add Keyword", callback_data="add_keyword")],
         [InlineKeyboardButton("Del Keyword", callback_data="del_keyword")],
@@ -1094,7 +1019,6 @@ async def keywords_command(update, context):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Send or edit the message with inline buttons
     if update.callback_query:
         await query.edit_message_text(response_text, reply_markup=reply_markup, parse_mode="HTML")
     else:
@@ -1104,22 +1028,20 @@ async def stopword_command(update, context):
     """
     Command handler for /stopword <keyword>. Deletes a specific keyword for the user, including multi-word keywords.
     """
-    user_id = str(update.message.from_user.id)  # user_id as string
-    # Load user data
+    user_id = str(update.message.from_user.id)  
+
     data = load_user_data()
     user_data = data["users"].get(user_id, {})
 
-    # Get the keyword from the command arguments, allowing multi-word keywords
     try:
-        keyword_to_remove = ' '.join(context.args)  # Join all arguments to handle multi-word keywords
+        keyword_to_remove = ' '.join(context.args)  
     except IndexError:
         await update.message.reply_text("Please specify the keyword you want to remove. Example: /stopword Good Morning")
         return
 
-    # Check if the keyword exists in the user's data
     keywords = user_data.get("keywords", {})
     if keyword_to_remove in keywords:
-        # Display animated deleting message
+
         message = await update.message.reply_text("<b>Deleting ▪▪</b>", parse_mode="HTML")
         await asyncio.sleep(0.2)
         await message.edit_text("<b>Deleting ▪▪▪▪</b>", parse_mode="HTML")
@@ -1127,32 +1049,25 @@ async def stopword_command(update, context):
         await message.edit_text("<b>Deleting ▪▪▪▪▪▪</b>", parse_mode="HTML")
         await asyncio.sleep(0.4)
 
-        # Remove the keyword
         del keywords[keyword_to_remove]
 
-        # Save the updated user data
         save_user_data(data)
 
-        # Send the final confirmation message
         await message.edit_text(f"<b>Deleted '{keyword_to_remove}' successfully ✅</b>", parse_mode="HTML")
     else:
         await update.message.reply_text(f"<b>Keyword '{keyword_to_remove}' not found in your list ❌</b>", parse_mode="HTML")
 
-
 async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     user_id = str(query.from_user.id).strip()
-    
-    # Load user data
+
     data = load_user_data()
     user_data = data["users"].get(user_id, {})
-    
-    # Authorization check
+
     if not await is_authorized(user_id):
         await query.edit_message_text("*You are not allowed to use this feature ❌*", parse_mode="Markdown")
         return
 
-    # Handle different callback data for match options and auto-reply toggle
     if query.data == "set_exact":
         user_data["match_option"] = "exact"
     elif query.data == "set_partial":
@@ -1160,45 +1075,38 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     elif query.data == "set_case_insensitive":
         user_data["match_option"] = "case_insensitive"
     elif query.data == "toggle_auto_reply":
-        user_data = data["users"].get(user_id)  # Ensure you fetch the user data correctly
+        user_data = data["users"].get(user_id)  
 
         keywords = user_data.get("keywords", {})
         if not keywords:
             await query.answer("No keywords have been set for you ❌\n Please add at least one word\n (/setword Message | Response)", show_alert=True)
             return
-        # Check if "forwarding_on" is false
+
         if user_data.get("forwarding_on", False):
             await query.answer("Auto-reply cannot be toggled while forwarding is active ❌", show_alert=True)
         else:
-            # Toggle auto-reply status
+
             user_data["auto_reply_status"] = not user_data.get("auto_reply_status", False)
-          
-            # Save the updated user data back to the JSON file
+
             save_user_data(data)
 
-            # Send a message to the user indicating the new auto-reply status
             await query.answer(f"Auto-reply is now {'enabled' if user_data['auto_reply_status'] else 'disabled'} ✅", show_alert=True)
 
-            # If auto-reply is enabled, start the Telethon client
             if user_data["auto_reply_status"]:
                 await start_telethon_client(user_id, context)  
             else:
                 await stop_telethon_client(user_id)
 
-        
     else:
         await all_callback(update, context)
         return
 
-    # Save updated user data after all changes
     save_user_data(data)
 
-    # Get the updated settings to display
     match_option = user_data["match_option"]
     auto_reply_status = "On" if user_data.get("auto_reply_status", False) else "Off"
     auto_reply_text = "Off" if user_data.get("auto_reply_status", False) else "On"
 
-    # Update the keyboard and message text
     keyboard = [
         [InlineKeyboardButton(f"Exact Match {'✅' if match_option == 'exact' else ''}", callback_data='set_exact')],
         [InlineKeyboardButton(f"Partial Match {'✅' if match_option == 'partial' else ''}", callback_data='set_partial')],
@@ -1207,19 +1115,15 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         [InlineKeyboardButton("My Keywords", callback_data='words')],
         [InlineKeyboardButton("🔙", callback_data='back')]
     ]
-    
+
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Edit the original message with the new settings
     await query.edit_message_text(
         f"Your Auto-reply settings\n\n*Match Option: {match_option}✅*\n*Mode: {auto_reply_status}✅*",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
 
-
-
-# Inline callback handler for settings
 async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
@@ -1230,7 +1134,7 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if not await is_authorized(user_id):
         await query.edit_message_text("*You are not allowed to use this feature ❌*", parse_mode="Markdown")
         return
-    
+
     if query.data == 'add_group':
         await query.edit_message_text("*Please Use:* \n`/add_group\n<group_link>\n<group_link2>`\n\n *to add a group or groups*", reply_markup=back_button(), parse_mode="Markdown")
     elif query.data == 'remove_group':
@@ -1257,38 +1161,38 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await my_groups(update, context)
     elif query.data == "auto_reply":
         await keyword_settings(update, context)
-   
+
     elif query.data == 'help':
         help_text = (
         "🤖 <b>DEVSCOTT AUTO FORWARDING Bot Help</b>\n\n"
         "Welcome to the DEVSCOTT AUTO FORWARDING Bot! Here's a guide on how to use the available commands:\n\n"
-        
+
         "1. <code>/start</code> - Initiates the bot and provides subscription information.\n"
         "   - Displays your current subscription status and expiration date, along with quick links to login and settings.\n\n"
-        
+
         "2. <code>/post &lt;message&gt;</code> - Sets the message to be forwarded to your groups.\n"
         "   - Example: <code>/post Hello everyone!</code> sets the message <code>Hello everyone!</code> to be forwarded.\nSet telegram message link if you want the message to be forwarded\n"
         "   - Use <code>/mypost</code> to check the post you have added\n\n"
-        
-        "3. <code>/add_group &lt;group_link&gt;</code> - Adds a group to your forwarding list.\n"
-        "   - Example: <code>/add_group https://t.me/mygroupusername</code> adds the group with link <code> https://t.me/mygroupusername</code> to your list for message forwarding.\n\n"
-        
-        "4. <code>/del_group &lt;group_id&gt https://t.me/mygroupusername;</code> - Removes a group from your forwarding list.\n"
-        "   - Example: <code>/del_group  https://t.me/mygroupusername</code> removes the group with link <code>https://t.me/mygroupusernam</code>.\n\n"
-        
+
+        "3. <code>/addgroup &lt;group_link&gt;</code> - Adds a group to your forwarding list.\n"
+        "   - Example: <code>/addgroup https://t.me/mygroupusername</code> adds the group with link <code> https://t.me/mygroupusername</code> to your list for message forwarding.\n\n"
+
+        "4. <code>/delgroup &lt;group_id&gt https://t.me/mygroupusername;</code> - Removes a group from your forwarding list.\n"
+        "   - Example: <code>/delgroup  https://t.me/mygroupusername</code> removes the group with link <code>https://t.me/mygroupusernam</code>.\n\n"
+
         "5. <code>/time &lt;seconds&gt;</code> - Sets the interval between message forwarding in seconds.\n"
         "   - Example: <code>/time 60</code> sets the message forwarding interval to 60 seconds.\n\n"
-        
+
         "6. <code>/on</code> - Enables automatic message forwarding.\n"
         "   - Before you use this command, make sure you've set the following:\n"
         "     - API ID and API Hash\n"
         "     - Groups to forward messages to\n"
         "     - The post message\n"
         "     - Interval for forwarding\n\n"
-        
+
         "7. <code>/off</code> - Disables message forwarding.\n"
         "   - This will stop the bot from forwarding messages to any of your groups.\n\n"
-        
+
         "🔑 <b>API Key and Login Instructions:</b>\n"
         "   1. <b>To log in:</b>\n"
         "      - Use the <code>/start</code> command to initiate the bot. If you're not logged in, use the <code>/login</code> (phone number) and complete the verification process.\n"
@@ -1296,13 +1200,12 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "      - Ensure you have your Telegram API ID and API Hash.\n"
         "      - Use the <code>/api_id</code> and <code>/hash</code> commands to set them up for forwarding. Ensure your API ID and API Hash are correctly configured in your user settings.\n"
         "      - If you encounter issues with logging in or setting up API keys, check that your credentials are correct and ensure you've completed all required steps.\n\n"
-        
-        "💡 <b>Need more help?</b> Contact the <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a> or refer to the tutorial"
+
+        f"💡 <b>Need more help?</b> Contact the <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a> or refer to the tutorial"
     )
 
-        await query.edit_message_text(text=help_text, parse_mode='HTML', reply_markup=back_button())
+        await query.edit_message_text(text= help_text, parse_mode='HTML', reply_markup=back_button())
 
-  
     elif query.data == 'login':
         await query.edit_message_text("Usage: /login <phone_number>", reply_markup=back_button())
     elif query.data == 'settings':
@@ -1314,8 +1217,7 @@ def back_button():
 
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
-    
-   
+
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("add", add))
     application.add_handler(CommandHandler("remove", remove))
@@ -1328,8 +1230,8 @@ def main():
     application.add_handler(CommandHandler("2fa", two_fa))
     application.add_handler(CommandHandler("logout", logout))
     application.add_handler(CommandHandler("groups", my_groups))
-    application.add_handler(CommandHandler("add_group", add_group))
-    application.add_handler(CommandHandler("del_group", del_group))
+    application.add_handler(CommandHandler("addgroup", add_group))
+    application.add_handler(CommandHandler("delgroup", del_group))
     application.add_handler(CommandHandler("setword", set_word))
     application.add_handler(CommandHandler("keywords", keywords_command))
     application.add_handler(CommandHandler("stopword", stopword_command))
@@ -1339,8 +1241,7 @@ def main():
     application.add_handler(CommandHandler("settings", settings))
     application.add_handler(CallbackQueryHandler(autoreply_callback))
     application.add_handler(CallbackQueryHandler(all_callback))
-    
-    # Start the bot
+
     application.run_polling()  
 
 class CustomHandler(http.server.SimpleHTTPRequestHandler):  
@@ -1349,7 +1250,6 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-type", "text/html")  
         self.end_headers()  
 
-        # Write the custom message to the response body  
         self.wfile.write(b"<!doctype html><html><head><title>Server Status</title></head>")  
         self.wfile.write(b"<body><h1>Bot is running...</h1></body></html>")  
 
@@ -1364,4 +1264,3 @@ if __name__ == '__main__':
     server_thread = threading.Thread(target=run_web_server)
     server_thread.start()
     main()
-
