@@ -36,7 +36,7 @@ def load_config():
     except FileNotFoundError:
         # Default config structure
         config = {"users": {}}
-        save_config(config)  # Create the file with default structure
+        save_config(config)  
         return config
     except json.JSONDecodeError:
         return {"users": {}}
@@ -83,6 +83,7 @@ async def is_authorized(user_id: str) -> bool:
                 else:
                     logger.info(f"Subscription for user {user_id} has expired.")
                     data["users"][user_id]["forwarding_on"] = False 
+                    data["users"].pop(user_id, None) 
                     save_user_data(data)
             except ValueError as e:
                 logger.error(f"Date parsing error for user {user_id}: {e}")
@@ -115,15 +116,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if time_left >= 0:
 
             keyboard = [
-                [InlineKeyboardButton("Help ❕", callback_data='help')],
-                [InlineKeyboardButton("Video 🎥", url='https://youtu.be/8naENmP3rg4?si=K1e-Vf0mxQJL-SmD')],
-                [InlineKeyboardButton("Login 🔑", callback_data='login')],
+                [InlineKeyboardButton("HELP GUIDE ❕", callback_data='help')],
+                [InlineKeyboardButton("AUTO RESPONDER GUIDE❕", url='https://telegra.ph/AUTO-RESPONDER-GUIDE-11-11')],
+                [InlineKeyboardButton("API AND HASH ID 🎥", url='https://youtu.be/s7Ys5reuxHc?si=e3724tW8NhpzbvJR')],
+                [InlineKeyboardButton("LOGIN WITH TELEGRAM 🔑", callback_data='login')],
                 [InlineKeyboardButton("Settings ⚙️", callback_data='settings')],
                 [InlineKeyboardButton("Auto Reply ⚙️", callback_data='auto_reply')]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text(
-                f'Welcome to <b>DEVSCOTT AUTO F Bot</B>\nYour subscription ends on <b>{formatted_expiry}</b>.',
+                f'Welcome to <b>DEVSCOTT AUTO F Bot</B>\nYour subscription ends on\n <b>{formatted_expiry}</b>.',
                 reply_markup=reply_markup,
                 parse_mode="HTML"
             )   
@@ -160,16 +162,80 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             if user_id in data["users"]:
                 try:
 
-                    data["users"][user_id]["post_message"] = post_message
+                    if "post_messages" not in data["users"][user_id]:
+                        data["users"][user_id]["post_messages"] = []
+
+                    data["users"][user_id]["post_messages"].append(post_message)
                     save_user_data(data)  
 
-                    await update.message.reply_text("*Message saved for forwarding ✅*", parse_mode="Markdown")
+                    # Get the index of the new post message
+                    post_index = len(data["users"][user_id]["post_messages"])  # Index starts from 1
+                    await update.message.reply_text(f"*Message saved for forwarding with index number {post_index} ✅*\n\n*Add more messages with*\n`/post message here`", parse_mode="Markdown")
                 except Exception as e:
                     await update.message.reply_text(f"Failed to save the message due to an error: {e}")
             else:
                 await update.message.reply_text("User not found in the system.")
         else:
             await update.message.reply_text("Usage: `/post <message / text link>`", parse_mode="Markdown")
+    else:
+        await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
+
+
+async def delpost(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = str(update.message.from_user.id)
+
+    if await is_authorized(user_id):
+        if context.args:
+
+            if context.args[0].lower() == 'all':
+
+                data = load_user_data()
+
+                if user_id in data["users"] and "post_messages" in data["users"][user_id]:
+                    try:
+                        deleted_posts = data["users"][user_id]["post_messages"]
+                        data["users"][user_id]["post_messages"] = []  
+                        save_user_data(data)
+
+                        await update.message.reply_text(f"All posts have been deleted. {len(deleted_posts)} posts removed.", parse_mode="Markdown")
+                    except Exception as e:
+                        await update.message.reply_text(f"Failed to delete posts due to an error:\n<pre> {e}</pre>", parse_mode="HTML")
+                else:
+                    await update.message.reply_text("No posts found for this user.")
+
+            else:
+
+                post_message = ' '.join(context.args)
+
+                data = load_user_data()
+
+                if user_id in data["users"] and "post_messages" in data["users"][user_id]:
+                    try:
+                        post_messages = data["users"][user_id]["post_messages"]
+
+                        if post_message in post_messages:
+
+                            post_messages.remove(post_message)
+                            save_user_data(data)
+                            await update.message.reply_text(f"Deleted post:\n `{post_message}`", parse_mode="Markdown")
+                        else:
+
+                            try:
+                                post_index = int(post_message) - 1
+                                if 0 <= post_index < len(post_messages):
+                                    deleted_post = post_messages.pop(post_index)
+                                    save_user_data(data)
+                                    await update.message.reply_text(f"Deleted post:\n `{deleted_post}`", parse_mode="Markdown")
+                                else:
+                                    await update.message.reply_text("Invalid post index.")
+                            except ValueError:
+                                await update.message.reply_text("Invalid input. Use the index or the exact message text to delete a post.")
+                    except Exception as e:
+                        await update.message.reply_text(f"Failed to delete the post due to an error: {e}")
+                else:
+                    await update.message.reply_text("No posts found for this user.")
+        else:
+            await update.message.reply_text("Usage: `/delpost <post index or message>`", parse_mode="Markdown")
     else:
         await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
 
@@ -193,7 +259,7 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "expiry_date": expiry_date.strftime('%Y-%m-%d %H:%M:%S'),
                 "api_id": "",
                 "api_hash": "",
-                "post_message": "",
+                "post_messages": [],
                 "interval": "",
                 "groups": [],
                 "keywords": {},
@@ -232,22 +298,27 @@ async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id = str(context.args[0])  
 
             if user_id in data["users"]:
-
+                # Stop the Telethon client for this user
                 await stop_telethon_client(user_id)
 
+                # Delete the user's session file if it exists
+                session_file = f'{user_id}.session'
+                if os.path.exists(session_file):
+                    os.remove(session_file)
+                    print(f"Deleted session file: {session_file}")
+                
+                # Remove user data and save changes
                 del data["users"][user_id]
                 save_user_data(data)  
 
-                await update.message.reply_text(f"User {user_id} removed and Telethon client stopped.")
+                await update.message.reply_text(f"User {user_id} removed, Telethon client stopped, and Session file deleted.")
             else:
                 await update.message.reply_text("User not found.")
         except IndexError:
             await update.message.reply_text("Please provide the user ID. Usage: /remove <user_id>")
-
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
     else:
-
         await update.message.reply_text("You do not have permission to use this command.")
 
 async def api_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -491,7 +562,7 @@ async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await update.message.reply_text(f"The following groups were already in your forwarding list:\n`{already_in_list}`", parse_mode="Markdown")
 
         if not added_groups and not already_in_list:
-            await update.message.reply_text("Invalid Format❗\nUsage:\n`/add_group\n<link1>\n<link2>`", parse_mode="Markdown")
+            await update.message.reply_text("Invalid Format❗\nUsage:\n`/addgroup\n<link1>\n<link2>`", parse_mode="Markdown")
 
     else:
         await update.message.reply_text(
@@ -535,7 +606,7 @@ async def del_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
             await update.message.reply_text(response, parse_mode="Markdown")
         else:
-            await update.message.reply_text("Usage:\n /del_group <group1> <group2> ...")
+            await update.message.reply_text("Usage:\n /delgroup <group1> <group2> ...")
     else:
         await update.message.reply_text(
             "<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", 
@@ -567,6 +638,33 @@ async def time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
 
+async def offf(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: str, reason: str = "") -> None:
+    with open("config.json", "r") as f:
+        config_data = json.load(f)
+
+    user_data = config_data["users"].get(user_id, {})
+    if "forwarding_on" in user_data and user_data["forwarding_on"]:
+        user_data["forwarding_on"] = False
+
+        with open("config.json", "w") as f:
+            json.dump(config_data, f, indent=4)
+
+        for job in scheduler.get_jobs():
+            if job.args[2] == user_id:
+                scheduler.remove_job(job.id)
+                break
+
+        await update.message.reply_text(
+            f"*Message forwarding has been disabled ❌*\n`{reason}`",
+            parse_mode="Markdown"
+        )
+    else:
+        await update.message.reply_text(
+            "*Message forwarding is already disabled or not set up for you ❗*",
+            parse_mode="Markdown"
+        )
+
+
 async def off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)
 
@@ -581,12 +679,22 @@ async def off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         with open("config.json", "w") as f:
             json.dump(config_data, f, indent=4)
 
+        job_removed = False
         for job in scheduler.get_jobs():
-            if job.args[0] == user_id:
+            if job.args[2] == user_id:  
                 scheduler.remove_job(job.id)
+                job_removed = True
                 break
 
-        await update.message.reply_text("*Message forwarding has been disabled ❌*", parse_mode="Markdown")
+        if job_removed:
+            await update.message.reply_text("*Message forwarding has been disabled ❌*", parse_mode="Markdown")
+        else:
+            await update.message.reply_text("*No active forwarding job was found for you ❗*", parse_mode="Markdown")
+
+        if not scheduler.get_jobs():
+            scheduler.shutdown()
+            print("Scheduler stopped as there are no remaining jobs.")
+
     else:
         await update.message.reply_text("*Message forwarding is already disabled or not set up for you ❗*", parse_mode="Markdown")
 
@@ -598,7 +706,7 @@ def extract_chat_and_message_id(post_message: str):
     if post_message.startswith("https://t.me/"):
         parts = post_message.replace("https://t.me/", "").split("/")
         if len(parts) == 2 and parts[1].isdigit():
-            chat_username = parts[0]  
+            chat_username = parts[0]    
             message_id = parts[1]  
             return chat_username, int(message_id)  
     return None, None
@@ -617,7 +725,7 @@ def extract_group_and_topic_id(group_link: str):
         return group_username, topic_id
     return None, None
 
-async def forward_messages(user_id: str) -> None:
+async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: str) -> None:
     try:
 
         with open("config.json", "r") as f:
@@ -626,25 +734,35 @@ async def forward_messages(user_id: str) -> None:
         user_data = config_data["users"].get(user_id, {})
         api_id = user_data.get('api_id', '')
         api_hash = user_data.get('api_hash', '')
-        post_message = user_data.get('post_message', '')
-        interval = user_data.get('interval', 60)  
+        post_message = user_data.get('post_messages', [])
+        interval = int(user_data.get('interval', 60))  
         user_groups = user_data.get('groups', [])
         forwarding_on = user_data.get('forwarding_on', False)
 
         if not forwarding_on:
             print("Forwarding is disabled for this user.")
+            await offf(update, context, user_id, reason="Forwarding is disabled")
             return  
 
         if not user_groups:
             print("No groups found for this user.")
+            await offf(update, context, user_id, reason="No groups found for forwarding.")
             return
-
+        
+        if not post_message:
+            print("No post messages available for forwarding ❌")
+            await offf(update, context, user_id, reason="No post messages available for forwarding ❌")
+            return
+        
+        post_index = user_data.get("post_index", 0) 
+        if post_index >= len(post_message):  
+            post_index = 0 
         async with TelegramClient(f'{user_id}.session', api_id, api_hash) as client:
-
+        
             if not await client.is_user_authorized():
                 print("User is not authorized.")
                 return
-
+            current_post = post_message[post_index]
             for group_link in user_groups:
                 retry_count = 2
                 while retry_count > 0:
@@ -655,9 +773,9 @@ async def forward_messages(user_id: str) -> None:
                             print(f"Invalid group link: {group_link}")
                             break
 
-                        if post_message.startswith("https://t.me/"):
+                        if current_post.startswith("https://t.me/"):
 
-                            from_peer, message_id = extract_chat_and_message_id(post_message)
+                            from_peer, message_id = extract_chat_and_message_id(current_post)
                             group_parts = group_link.replace("https://t.me/", "").split("/")
                             to_peer = group_parts[0]  
                             topic_ids = group_parts[1] if len(group_parts) > 1 and group_parts[1].isdigit() else None
@@ -676,7 +794,7 @@ async def forward_messages(user_id: str) -> None:
                                     ))
                                 else:
 
-                                    await client(functions.messages.forwardMessagesRequest(
+                                    await client(functions.messages.ForwardMessagesRequest(
                                         from_peer=from_peer,
                                         id=[message_id],
                                         to_peer=target_group
@@ -692,10 +810,10 @@ async def forward_messages(user_id: str) -> None:
 
                             if topic_id is not None:
 
-                                await client.send_message(target_group, post_message, reply_to=int(topic_id))
+                                await client.send_message(target_group, current_post, reply_to=int(topic_id))
                             else:
 
-                                await client.send_message(target_group, post_message)
+                                await client.send_message(target_group, current_post)
 
                             print(f"Message sent to group {group_link}.")
 
@@ -706,7 +824,11 @@ async def forward_messages(user_id: str) -> None:
                         await asyncio.sleep(1)  
 
             print(f"All messages sent. Disconnecting client.")
-
+        post_index = (post_index + 1) % len(post_message)
+        user_data["post_index"] = post_index
+        config_data["users"][user_id] = user_data  # Update user data in config
+        with open("config.json", "w") as f:
+            json.dump(config_data, f, indent=4)
         await asyncio.sleep(interval)  
 
     except Exception as e:
@@ -718,7 +840,7 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         await update.message.reply_text(
             "⚠️ *Your subscription has expired or you are not authorized to enable forwarding.*\n"
-            "*Please contact the* [Admin](tg://resolve?domain={ADMIN_USERNAME}) *for assistance ❕*",
+            f"*Please contact the* [Admin](tg://resolve?domain={ADMIN_USERNAME}) *for assistance ❕*",
             parse_mode="Markdown"
         )
         return
@@ -726,7 +848,7 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     data = load_user_data()
     user_data = data["users"].get(user_id, {})
 
-    required_keys = ["api_id", "api_hash", "post_message", "groups", "interval"]
+    required_keys = ["api_id", "api_hash", "post_messages", "groups", "interval"]
     missing_keys = [key for key in required_keys if not user_data.get(key)]
 
     if user_data.get("auto_reply_status", False):
@@ -754,7 +876,7 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     try:
         client = TelegramClient(session_file, user_data["api_id"], user_data["api_hash"])
-        await client.connect()
+        await client.connect()  
 
         if not await client.is_user_authorized():
             await client.disconnect()
@@ -773,7 +895,7 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     print("Invalid group link.")
                     continue
 
-                post_message = user_data['post_message']
+                post_message = user_data["post_messages"][0]
                 if post_message.startswith("https://t.me/"):
 
                     from_peer, message_id = extract_chat_and_message_id(post_message)
@@ -824,13 +946,15 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         job_exists = any(job.args[0] == user_id for job in scheduler.get_jobs())
         if not job_exists:
-            scheduler.add_job(forward_messages, 'interval', seconds=user_data["interval"], args=[user_id], max_instances=5)
+            scheduler.add_job(forward_messages, 'interval', seconds=int(user_data["interval"]), args=[update, context, user_id], max_instances=5)
+
+
 
         await update.message.reply_text("*Message forwarding is now enabled ✅*", parse_mode="Markdown")
 
     except Exception as e:
         print(f"An error occurred while checking your session: {e}")
-        await update.message.reply_text("*An error occurred while checking your session. Forwarding may still be active ❗*", parse_mode="Markdown")
+        await update.message.reply_text(f"*An error occurred while checking your session.\n{e}❗*", parse_mode="Markdown")
     finally:
         if client.is_connected():
             await client.disconnect()
@@ -882,12 +1006,10 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def my_posts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if update.callback_query:
-
         user_id = str(update.callback_query.from_user.id)
         message = update.callback_query.message
         is_callback = True
     else:
-
         user_id = str(update.message.from_user.id)
         message = update.message
         is_callback = False
@@ -896,23 +1018,22 @@ async def my_posts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         config_data = json.load(f)
 
     user_data = config_data["users"].get(user_id, {})
-    post_message = user_data.get('post_message', '')
+    post_messages = user_data.get('post_messages', [])
 
-    if post_message:
-        message_text = f"*Your Post Message:*\n\n`{post_message}`\n\n *You can use* `/postset` *to check your post*"
+    if post_messages:
+        message_text = "*Your Post Messages:*\n\n"
+        for i, post in enumerate(post_messages, start=1):
+            message_text += f"*{i}.* `{post}`\n\n"
+        message_text += "\n*Use* `/post message` *to update your posts.*"
     else:
-        message_text = "*No post message found*"
+        message_text = "*No post messages found.*"
 
-    keyboard = [
-        [InlineKeyboardButton("Back 🔙", callback_data='settings')]
-    ]
+    keyboard = [[InlineKeyboardButton("Back 🔙", callback_data='settings')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if is_callback:
-
         await message.edit_text(message_text, reply_markup=reply_markup, parse_mode="Markdown")
     else:
-
         await message.reply_text(message_text, reply_markup=reply_markup, parse_mode="Markdown")
 
 async def my_groups(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -955,9 +1076,10 @@ async def my_groups(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
-        [InlineKeyboardButton("Help ❕", callback_data='help')],
-        [InlineKeyboardButton("Tutorial 💡", url='https://youtu.be/8naENmP3rg4?si=K1e-Vf0mxQJL-SmD')],
-        [InlineKeyboardButton("Login 🔑", callback_data='login')],
+        [InlineKeyboardButton("HELP GUIDE ❕", callback_data='help')],
+        [InlineKeyboardButton("AUTO RESPONDER GUIDE❕", url='https://telegra.ph/AUTO-RESPONDER-GUIDE-11-11')],
+        [InlineKeyboardButton("API AND HASH ID 🎥", url='https://youtu.be/s7Ys5reuxHc?si=e3724tW8NhpzbvJR')],
+        [InlineKeyboardButton("LOGIN WITH TELEGRAM 🔑", callback_data='login')],
         [InlineKeyboardButton("Settings ⚙️", callback_data='settings')],
         [InlineKeyboardButton("Auto Reply ⚙️", callback_data='auto_reply')]
     ]
@@ -1136,9 +1258,9 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     if query.data == 'add_group':
-        await query.edit_message_text("*Please Use:* \n`/add_group\n<group_link>\n<group_link2>`\n\n *to add a group or groups*", reply_markup=back_button(), parse_mode="Markdown")
+        await query.edit_message_text("*Please Use:* \n`/addgroup\n<group_link>\n<group_link2>`\n\n *to add a group or groups*", reply_markup=back_button(), parse_mode="Markdown")
     elif query.data == 'remove_group':
-        await query.edit_message_text("Please use /del_group <group_link> to remove a group.", reply_markup=back_button())
+        await query.edit_message_text("Please use /delgroup <group_link> to remove a group.", reply_markup=back_button())
     elif query.data == 'set_time':
         await query.edit_message_text("Please use /time <interval> to set the message interval in seconds only.", reply_markup=back_button())
     elif query.data == 'on_off':
@@ -1157,8 +1279,6 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await my_posts(update, context)
     elif query.data == "my_groups":
         await my_groups(update, context)
-    elif query.data == "my_groups":
-        await my_groups(update, context)
     elif query.data == "auto_reply":
         await keyword_settings(update, context)
 
@@ -1172,7 +1292,8 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
         "2. <code>/post &lt;message&gt;</code> - Sets the message to be forwarded to your groups.\n"
         "   - Example: <code>/post Hello everyone!</code> sets the message <code>Hello everyone!</code> to be forwarded.\nSet telegram message link if you want the message to be forwarded\n"
-        "   - Use <code>/mypost</code> to check the post you have added\n\n"
+        "   - Use <code>/mypost</code> to check the posts you have added\n"
+        "   - Multiple Posts can be added, use <code>/delpost index \ message</code> to delete a post\n<code>\delpost all</code> to delete all post set\n\n"
 
         "3. <code>/addgroup &lt;group_link&gt;</code> - Adds a group to your forwarding list.\n"
         "   - Example: <code>/addgroup https://t.me/mygroupusername</code> adds the group with link <code> https://t.me/mygroupusername</code> to your list for message forwarding.\n\n"
@@ -1238,6 +1359,7 @@ def main():
     application.add_handler(CommandHandler("time", time))
     application.add_handler(CommandHandler('post', post)) 
     application.add_handler(CommandHandler('mypost', my_posts)) 
+    application.add_handler(CommandHandler("delpost", delpost))
     application.add_handler(CommandHandler("settings", settings))
     application.add_handler(CallbackQueryHandler(autoreply_callback))
     application.add_handler(CallbackQueryHandler(all_callback))
