@@ -516,6 +516,34 @@ async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await message.reply_text("API credentials not found. Please log in first.")
 
+
+async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    data = load_user_data()
+    users = data.get("users", {})
+    user_id = str(update.message.from_user.id)
+    if user_id not in ADMIN_IDS:
+        await update.message.reply_text("You are not authorised to use this command ❌")
+        return
+    if not users:
+        await update.message.reply_text("No users found in the database ❌")
+        return
+
+    message = "*User List with Expiry Dates:*\n\n"
+
+    for user_id, user_info in users.items():
+        try:
+            user_chat = await context.bot.get_chat(user_id)  # Get user info from Telegram
+            first_name = user_chat.first_name  # Extract the first name
+        except Exception as e:
+            first_name = "Unknown"  # Handle cases where the user info might not be available
+            print(f"Error fetching user {user_id}: {e}")
+
+        expiry_date = user_info.get("expiry_date", "Not Set")
+        message += f"• User: `{first_name}`\n (ID: `{user_id}`)\n   Expiry Date: `{expiry_date}`\n\n"
+
+    await update.message.reply_text(message, parse_mode="Markdown")
+
+
 async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)  
 
@@ -1360,6 +1388,7 @@ def main():
     application.add_handler(CommandHandler('post', post)) 
     application.add_handler(CommandHandler('mypost', my_posts)) 
     application.add_handler(CommandHandler("delpost", delpost))
+    application.add_handler(CommandHandler('list', list_users))
     application.add_handler(CommandHandler("settings", settings))
     application.add_handler(CallbackQueryHandler(autoreply_callback))
     application.add_handler(CallbackQueryHandler(all_callback))
