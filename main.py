@@ -34,7 +34,7 @@ def load_config():
                 config["users"] = {}  
             return config
     except FileNotFoundError:
-        # Default config structure
+
         config = {"users": {}}
         save_config(config)  
         return config
@@ -168,8 +168,7 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     data["users"][user_id]["post_messages"].append(post_message)
                     save_user_data(data)  
 
-                    # Get the index of the new post message
-                    post_index = len(data["users"][user_id]["post_messages"])  # Index starts from 1
+                    post_index = len(data["users"][user_id]["post_messages"])  
                     await update.message.reply_text(f"*Message saved for forwarding with index number {post_index} ✅*\n\n*Add more messages with*\n`/post message here`", parse_mode="Markdown")
                 except Exception as e:
                     await update.message.reply_text(f"Failed to save the message due to an error: {e}")
@@ -179,7 +178,6 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await update.message.reply_text("Usage: `/post <message / text link>`", parse_mode="Markdown")
     else:
         await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
-
 
 async def delpost(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)
@@ -260,6 +258,7 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "api_id": "",
                 "api_hash": "",
                 "post_messages": [],
+                "message_source": "mypost",
                 "interval": "",
                 "groups": [],
                 "keywords": {},
@@ -298,16 +297,14 @@ async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id = str(context.args[0])  
 
             if user_id in data["users"]:
-                # Stop the Telethon client for this user
+
                 await stop_telethon_client(user_id)
 
-                # Delete the user's session file if it exists
                 session_file = f'{user_id}.session'
                 if os.path.exists(session_file):
                     os.remove(session_file)
                     print(f"Deleted session file: {session_file}")
-                
-                # Remove user data and save changes
+
                 del data["users"][user_id]
                 save_user_data(data)  
 
@@ -516,7 +513,6 @@ async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await message.reply_text("API credentials not found. Please log in first.")
 
-
 async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     data = load_user_data()
     users = data.get("users", {})
@@ -532,17 +528,16 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
     for user_id, user_info in users.items():
         try:
-            user_chat = await context.bot.get_chat(user_id)  # Get user info from Telegram
-            first_name = user_chat.first_name  # Extract the first name
+            user_chat = await context.bot.get_chat(user_id)  
+            first_name = user_chat.first_name  
         except Exception as e:
-            first_name = "Unknown"  # Handle cases where the user info might not be available
+            first_name = "Unknown"  
             print(f"Error fetching user {user_id}: {e}")
 
         expiry_date = user_info.get("expiry_date", "Not Set")
         message += f"• User: `{first_name}`\n (ID: `{user_id}`)\n   Expiry Date: `{expiry_date}`\n\n"
 
     await update.message.reply_text(message, parse_mode="Markdown")
-
 
 async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)  
@@ -692,7 +687,6 @@ async def offf(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: str,
             parse_mode="Markdown"
         )
 
-
 async def off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)
 
@@ -776,17 +770,17 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             print("No groups found for this user.")
             await offf(update, context, user_id, reason="No groups found for forwarding.")
             return
-        
+
         if not post_message:
             print("No post messages available for forwarding ❌")
             await offf(update, context, user_id, reason="No post messages available for forwarding ❌")
             return
-        
+
         post_index = user_data.get("post_index", 0) 
         if post_index >= len(post_message):  
             post_index = 0 
         async with TelegramClient(f'{user_id}.session', api_id, api_hash) as client:
-        
+
             if not await client.is_user_authorized():
                 print("User is not authorized.")
                 return
@@ -852,9 +846,10 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
                         await asyncio.sleep(1)  
 
             print(f"All messages sent. Disconnecting client.")
+
         post_index = (post_index + 1) % len(post_message)
         user_data["post_index"] = post_index
-        config_data["users"][user_id] = user_data  # Update user data in config
+        config_data["users"][user_id] = user_data  
         with open("config.json", "w") as f:
             json.dump(config_data, f, indent=4)
         await asyncio.sleep(interval)  
@@ -862,10 +857,88 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
     except Exception as e:
         print(f"An error occurred in forward_messages: {e}")
 
+async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: str) -> None:
+    try:
+        with open("config.json", "r") as f:
+            config_data = json.load(f)
+
+        user_data = config_data["users"].get(user_id, {})
+        api_id = user_data.get('api_id', '')
+        api_hash = user_data.get('api_hash', '')
+        interval = int(user_data.get('interval', 60))
+        user_groups = user_data.get('groups', [])
+        forwarding_on = user_data.get('forwarding_on', False)
+
+        if not forwarding_on:
+            print("Forwarding is disabled for this user.")
+            await offf(update, context, user_id, reason="Forwarding is disabled")
+            return  
+
+        if not user_groups:
+            print("No groups found for this user.")
+            await offf(update, context, user_id, reason="No groups found for forwarding.")
+            return
+
+        async with TelegramClient(f'{user_id}.session', api_id, api_hash) as client:
+            if not await client.is_user_authorized():
+                print("User is not authorized.")
+                return
+
+            saved_messages = await client.get_entity('me')
+            messages = await client.get_messages(saved_messages, limit=1)  
+            if not messages:
+                print("No messages found in Saved Messages.")
+                await offf(update, context, user_id, reason="No messages found in Saved Messages ❌")
+                return
+
+            current_post = messages[0]  
+
+            for group_link in user_groups:
+                retry_count = 2
+                while retry_count > 0:
+                    try:
+                        to_peer, topic_id = extract_group_and_topic_id(group_link)
+                        if not to_peer:
+                            print(f"Invalid group link: {group_link}")
+                            break
+
+                        if current_post.text:  
+                            target_group = await client.get_entity(to_peer)
+
+                            if topic_id is not None:
+                                await client(functions.messages.ForwardMessagesRequest(
+                                    from_peer=saved_messages,
+                                    id=[current_post.id],
+                                    to_peer=target_group,
+                                    top_msg_id=int(topic_id) if topic_id else None
+                                ))
+                            else:
+                                await client(functions.messages.ForwardMessagesRequest(
+                                    from_peer=saved_messages,
+                                    id=[current_post.id],
+                                    to_peer=target_group
+                                ))
+
+                            print(f"Message forwarded to group {group_link}.")
+                        else:
+                            print(f"Message does not contain text, skipping: {current_post.id}")
+
+                        break  
+                    except Exception as e:
+                        print(f"Error forwarding message to group {group_link}: {e}")
+                        retry_count -= 1
+                        await asyncio.sleep(1)  
+
+            print(f"All messages sent. Disconnecting client.")
+
+        await asyncio.sleep(interval)
+
+    except Exception as e:
+        print(f"An error occurred in forward_messages: {e}")
+
 async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)
     if not await is_authorized(user_id):
-
         await update.message.reply_text(
             "⚠️ *Your subscription has expired or you are not authorized to enable forwarding.*\n"
             f"*Please contact the* [Admin](tg://resolve?domain={ADMIN_USERNAME}) *for assistance ❕*",
@@ -915,68 +988,16 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         data["users"][user_id]["forwarding_on"] = True
         save_user_data(data)
 
-        for group_link in user_data.get('groups', []):
-            try:
-
-                to_peer, topic_id = extract_group_and_topic_id(group_link)
-                if not to_peer:
-                    print("Invalid group link.")
-                    continue
-
-                post_message = user_data["post_messages"][0]
-                if post_message.startswith("https://t.me/"):
-
-                    from_peer, message_id = extract_chat_and_message_id(post_message)
-                    group_parts = group_link.replace("https://t.me/", "").split("/")
-                    to_peer = group_parts[0]  
-                    topic_ids = group_parts[1] if len(group_parts) > 1 and group_parts[1].isdigit() else None
-
-                    if from_peer and message_id:
-
-                        target_group = await client.get_entity(to_peer)
-
-                        if topic_ids:
-                            await client(functions.messages.ForwardMessagesRequest(
-                                            from_peer=from_peer,
-                                            id=[message_id],
-                                            to_peer=target_group,
-                                            top_msg_id=int(topic_ids)  
-                                        ))
-
-                        else:
-
-                            await client(functions.messages.ForwardMessagesRequest(
-                                    from_peer=from_peer,
-                                    id=[message_id],
-                                    to_peer=target_group
-                                        ))
-
-                        print(f"Message forwarded to group {group_link}.")
-
-                else:
-
-                                target_group = await client.get_entity(to_peer)
-
-                                if topic_id is not None:
-
-                                    await client.send_message(target_group, post_message, reply_to=int(topic_id))
-                                else:
-
-                                    await client.send_message(target_group, post_message)
-
-                                print(f"Message sent to group {group_link}.")
-
-            except Exception as e:
-                print(f"Error sending initial message to group {group_link}: {e}")
-
         if not scheduler.running:
             scheduler.start()
 
         job_exists = any(job.args[0] == user_id for job in scheduler.get_jobs())
         if not job_exists:
-            scheduler.add_job(forward_messages, 'interval', seconds=int(user_data["interval"]), args=[update, context, user_id], max_instances=5)
-
-
+            message_source = user_data.get("message_source", "mypost")
+            if message_source == "saved_messages":
+                scheduler.add_job(forward_saved, 'interval', seconds=int(user_data["interval"]), args=[update, context, user_id], max_instances=5)
+            else:
+                scheduler.add_job(forward_messages, 'interval', seconds=int(user_data["interval"]), args=[update, context, user_id], max_instances=5)
 
         await update.message.reply_text("*Message forwarding is now enabled ✅*", parse_mode="Markdown")
 
@@ -986,6 +1007,12 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     finally:
         if client.is_connected():
             await client.disconnect()
+
+    await asyncio.sleep(1)
+    if message_source == "saved_messages":
+        asyncio.create_task(forward_saved(update, context, user_id))  
+    else:
+        asyncio.create_task(forward_messages(update, context, user_id)) 
 
 async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
@@ -1020,7 +1047,8 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             [InlineKeyboardButton("My Post 📝", callback_data='my_post'), InlineKeyboardButton("My Groups 👥 ", callback_data='my_groups')],
             [InlineKeyboardButton("Add Group ➕ ", callback_data='add_group'), InlineKeyboardButton("Remove Group ❌", callback_data='remove_group')],
             [InlineKeyboardButton("Set Time ⏲", callback_data='set_time'), InlineKeyboardButton("Toggle Forwarding ⏩", callback_data='on_off')],
-            [InlineKeyboardButton("Logout 🚪", callback_data='logout'), InlineKeyboardButton("Back 🔙", callback_data='back')]
+            [InlineKeyboardButton("Logout 🚪", callback_data='logout'), InlineKeyboardButton("Message Source 📝📥", callback_data='msg_source')],
+            [InlineKeyboardButton("Back 🔙", callback_data='back')]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
     else:
@@ -1030,6 +1058,27 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await message.edit_text(settings_text, reply_markup=reply_markup, parse_mode="Markdown")
     else:
         await message.reply_text(settings_text, reply_markup=reply_markup, parse_mode="Markdown")
+
+async def message_source(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = str(update.callback_query.from_user.id)
+    message = update.callback_query.message
+
+    data = load_user_data()
+    user_data = data["users"].get(user_id, {})
+
+    current_source = user_data.get("message_source", "mypost")
+
+    keyboard = [
+        [InlineKeyboardButton(f"My Post 📝 {'🟢' if current_source == 'mypost' else ''}", callback_data='mypost')],
+        [InlineKeyboardButton(f"Saved Messages 📥 {'🟢' if current_source == 'saved_messages' else ''}", callback_data='saved_messages')],
+        [InlineKeyboardButton("Back 🔙", callback_data='settings')]
+    ]
+
+    await message.edit_text(
+        f"*Current Source Settings:\n {current_source.upper()} ✅*",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode= "Markdown"
+    )
 
 async def my_posts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
@@ -1297,6 +1346,8 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await back_to_menu(update, context)
     elif query.data == "words": 
         await keywords_command(update, context)
+    elif query.data == "msg_source":
+        await message_source(update, context)
     elif query.data == "add_keyword":
         await query.edit_message_text("Use `/setword Message | Response`", parse_mode="Markdown", reply_markup=back_button())
     elif query.data == "del_keyword":
@@ -1321,8 +1372,13 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "2. <code>/post &lt;message&gt;</code> - Sets the message to be forwarded to your groups.\n"
         "   - Example: <code>/post Hello everyone!</code> sets the message <code>Hello everyone!</code> to be forwarded.\nSet telegram message link if you want the message to be forwarded\n"
         "   - Use <code>/mypost</code> to check the posts you have added\n"
-        "   - Multiple Posts can be added, use <code>/delpost index \ message</code> to delete a post\n<code>\delpost all</code> to delete all post set\n\n"
-
+        "   - Multiple Posts can be added, use <code>/delpost index \\ message</code> to delete a post\n<code>/delpost all</code> to delete all post set\n\n"
+        "2ii. <code>Message Source</code> - Sets the source of the messages to forward.\n"
+        "   - You can choose between <b>My Post 📝</b> or <b>Saved Messages 📥</b>.\n"
+        "   - <b>My Post 📝</b> will forward messages from your post messages <code>/post message</code> (default option for all users).\n"
+        "   - <b>Saved Messages 📥</b> will forward messages from your saved messages in Telegram.\n"
+        "   - You can toggle between the sources at any time through the settings menu.\n"
+        "   - The currently selected message source will be displayed in the settings and can be changed anytime.\n\n"
         "3. <code>/addgroup &lt;group_link&gt;</code> - Adds a group to your forwarding list.\n"
         "   - Example: <code>/addgroup https://t.me/mygroupusername</code> adds the group with link <code> https://t.me/mygroupusername</code> to your list for message forwarding.\n\n"
 
@@ -1359,6 +1415,42 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await query.edit_message_text("Usage: /login <phone_number>", reply_markup=back_button())
     elif query.data == 'settings':
         await settings(update, context) 
+    elif query.data == 'mypost':
+
+        user_data["message_source"] = "mypost"
+        data["users"][user_id] = user_data
+        save_user_data(data)
+
+        current_source = "My Post"
+        keyboard = [
+            [InlineKeyboardButton(f"My Post 📝 {'🟢' if current_source == 'My Post' else ''}", callback_data='mypost')],
+            [InlineKeyboardButton(f"Saved Messages 📥 {'🟢' if current_source == 'Saved Messages' else ''}", callback_data='saved_messages')],
+            [InlineKeyboardButton("Back 🔙", callback_data='settings')]
+        ]
+
+        await update.callback_query.edit_message_text(
+            f"*Current Source Settings:\n MY POST 📝 ✅*",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+    elif query.data == 'saved_messages':
+
+        user_data["message_source"] = "saved_messages"
+        data["users"][user_id] = user_data
+        save_user_data(data)
+        current_source = "Saved Messages"
+        keyboard = [
+            [InlineKeyboardButton(f"My Post 📝 {'🟢' if current_source == 'My Post' else ''}", callback_data='mypost')],
+            [InlineKeyboardButton(f"Saved Messages 📥 {'🟢' if current_source == 'Saved Messages' else ''}", callback_data='saved_messages')],
+            [InlineKeyboardButton("Back 🔙", callback_data='settings')]
+        ]
+
+
+        await update.callback_query.edit_message_text(
+            f"*Current Source Settings:\n SAVED MESSAGES 📥 ✅*",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode = "Markdown"
+        )
 
 def back_button():
     keyboard = [[InlineKeyboardButton("Back 🔙", callback_data='settings')]]
