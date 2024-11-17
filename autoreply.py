@@ -40,7 +40,7 @@ async def set_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id).strip()
     from main import is_authorized
     if not await is_authorized(user_id):
-        await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
+        await update.message.reply_text(f"🔒 <b>Access Restricted</b>\n\n❌ No active subscription found\n✨ Please contact <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a> for access", parse_mode="HTML")
         return
 
     try:
@@ -62,14 +62,14 @@ async def set_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(f"Keyword:\n<pre>{keyword}</pre> has been set with the response:\n <pre>{response}</pre>", parse_mode="HTML")
 
     except (IndexError, ValueError):
-        await update.message.reply_text("Please use the correct format:\n `/set_word keyword | response`", parse_mode="Markdown")
+        await update.message.reply_text("⚠️ *Invalid Format*\n\n📝 Please use:\n`/set_word keyword | response`", parse_mode="Markdown")
 
 async def keyword_response(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id).strip()
 
     from main import is_authorized
     if not await is_authorized(user_id):
-        await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
+        await update.message.reply_text(f"🔒 <b>Access Restricted</b>\n\n❌ No active subscription found\n✨ Please contact <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a> for access", parse_mode="HTML")
         return
 
     data = load_user_data()
@@ -97,33 +97,34 @@ async def keyword_response(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         elif match_option == "case_insensitive" and keyword.lower() in message_text.lower():
             await reply_with_telethon(user_id, response, context)
             return
+
 async def keyword_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.callback_query.from_user.id).strip()
 
     from main import is_authorized
     if not await is_authorized(user_id):
-        await update.callback_query.edit_message_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
+        await update.callback_query.edit_message_text(f"🔒 <b>Access Restricted</b>\n\n❌ No active subscription found\n✨ Please contact <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a> for access", parse_mode="HTML")
         return
 
     data = load_user_data()
     user_data = data["users"].get(user_id, {})
 
     match_option = user_data["match_option"]
-    auto_reply_status = "On" if user_data.get("auto_reply_status", False) else "Off"
-    auto_reply_text = "Off" if user_data.get("auto_reply_status", False) else "On"
+    auto_reply_status = "Enabled ✅" if user_data.get("auto_reply_status", False) else "Disabled ❌"
+    auto_reply_text = "Disable 🔴" if user_data.get("auto_reply_status", False) else "Enable 🟢"
 
     keyboard = [
-        [InlineKeyboardButton(f"Exact Match {'✅' if match_option == 'exact' else ''}", callback_data='set_exact')],
-        [InlineKeyboardButton(f"Partial Match {'✅' if match_option == 'partial' else ''}", callback_data='set_partial')],
-        [InlineKeyboardButton(f"Case Insensitive {'✅' if match_option == 'case_insensitive' else ''}", callback_data='set_case_insensitive')],
-        [InlineKeyboardButton(f"Turn {auto_reply_text}", callback_data='toggle_auto_reply')],
-        [InlineKeyboardButton("My Keywords", callback_data='words')],
-        [InlineKeyboardButton("🔙", callback_data='back')]
+        [InlineKeyboardButton(f"Exact Match {'✅' if match_option == 'exact' else '❌'}", callback_data='set_exact')],
+        [InlineKeyboardButton(f"Partial Match {'✅' if match_option == 'partial' else '❌'}", callback_data='set_partial')],
+        [InlineKeyboardButton(f"Case Insensitive {'✅' if match_option == 'case_insensitive' else '❌'}", callback_data='set_case_insensitive')],
+        [InlineKeyboardButton(f"{auto_reply_text}", callback_data='toggle_auto_reply')],
+        [InlineKeyboardButton("📝 My Keywords", callback_data='words')],
+        [InlineKeyboardButton("🔙 Back", callback_data='back')]
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.callback_query.edit_message_text(
-        f"Your Auto-reply settings\n\n*Match Option: {match_option}✅*\n*Mode: {auto_reply_status}✅*",
+        f"⚙️ *Auto-Reply Settings*\n\n🎯 Match Mode: `{match_option}`\n📊 Status: `{auto_reply_status}`",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
@@ -137,11 +138,10 @@ async def reply_with_telethon(user_id, message, context=None):
 
         print(f"Session file for {user_id} does not exist. Ask the user to log in.")
         try:
-
             if context:  
                 await context.bot.send_message(
                     chat_id=user_id,
-                    text="<b>Your session file is missing. Please log in again.</b>",
+                    text="⚠️ <b>Session Error</b>\n\n❌ Your session file is missing\n📝 Please log in again to continue",
                     parse_mode="HTML"
                 )
             else:
@@ -184,7 +184,7 @@ async def start_telethon_client(user_id, context=None):
             if context:
                 await context.bot.send_message(
                     chat_id=user_id,
-                    text="<b>Your session file is missing. Please log in again.</b>",
+                    text="⚠️ <b>Session Error</b>\n\n❌ Your session file is missing\n📝 Please log in again to continue",
                     parse_mode="HTML"
                 )
             user_data["auto_reply_status"] = False
@@ -208,7 +208,7 @@ async def start_telethon_client(user_id, context=None):
             os.remove(session_file)
             await context.bot.send_message(
                 chat_id=user_id,
-                text="*Your session was terminated. Please log in again ❌*",
+                text="🔒 *Authorization Failed*\n\n❌ Your session was terminated\n📝 Please log in again to continue",
                 parse_mode="Markdown"
             )
             user_data["auto_reply_status"] = False
@@ -226,7 +226,7 @@ async def start_telethon_client(user_id, context=None):
         save_user_data(data)
         return
 
-    
+
 
     @client.on(events.NewMessage)
     async def handler(event):
@@ -235,35 +235,35 @@ async def start_telethon_client(user_id, context=None):
         chat_name = chat.title if hasattr(chat, 'title') else chat.username or chat_id
         message_text = event.message.message
 
-        print(f"Received message in {chat_name}")
+        print(f"📥 Received message in {chat_name}")
 
         keywords = user_data.get("keywords", {})
         match_option = user_data.get("match_option", "exact").lower()
 
         for keyword, response in keywords.items():
             if match_option == "exact":
-                # Match exact word (case insensitive)
+
                 pattern = r"^" + re.escape(keyword) + r"$"
                 if re.match(pattern, message_text, re.IGNORECASE):
-                    print(f"Exact match found in {chat_name}: {keyword}")
+                    print(f"✨ Exact match found in {chat_name}: {keyword}")
             elif match_option == "partial":
-                # Match keyword as a whole word within message text (case insensitive)
+
                 pattern = r"\b" + re.escape(keyword) + r"\b"
                 if re.search(pattern, message_text, re.IGNORECASE):
-                    print(f"Partial match found in {chat_name}: {keyword}")
+                    print(f"✨ Partial match found in {chat_name}: {keyword}")
             elif match_option == "case_insensitive":
-                # Case-insensitive substring match
-                if keyword.lower() in message_text.lower():
-                    print(f"Case-insensitive match found in {chat_name}: {keyword}")
 
-            # If a match is found, send a response
+                if keyword.lower() in message_text.lower():
+                    print(f"✨ Case-insensitive match found in {chat_name}: {keyword}")
+
+
             if match_option in ["exact", "partial", "case_insensitive"] and (
                 (match_option == "exact" and re.match(pattern, message_text, re.IGNORECASE)) or
                 (match_option == "partial" and re.search(pattern, message_text, re.IGNORECASE)) or
                 (match_option == "case_insensitive" and keyword.lower() in message_text.lower())
             ):
                 if chat_id in last_reply_time and (asyncio.get_event_loop().time() - last_reply_time[chat_id]) < 10:
-                    print(f"Skipping reply in {chat_name} due to 10-second cooldown.")
+                    print(f"⏳ Cooldown active in {chat_name}")
                     return
 
                 await asyncio.sleep(1)
@@ -273,7 +273,7 @@ async def start_telethon_client(user_id, context=None):
                 else:
                     await event.reply(response)
 
-                print(f"Replied with: {response}")
+                print(f"📤 Replied with: {response}")
 
                 last_reply_time[chat_id] = asyncio.get_event_loop().time()
 
@@ -282,7 +282,7 @@ async def start_telethon_client(user_id, context=None):
                 return
 
     try:
-        print(f"Telethon client started successfully for user {user_id}")
+        print(f"✅ Telethon client started successfully for user {user_id}")
         user_data["client_active"] = True
         save_user_data(data)
 
@@ -291,7 +291,7 @@ async def start_telethon_client(user_id, context=None):
         asyncio.create_task(client.run_until_disconnected())
 
     except Exception as e:
-        print(f"Error starting Telethon client for user {user_id}: {e}")
+        print(f"❌ Error starting Telethon client for user {user_id}: {e}")
         user_data["client_active"] = False
         save_user_data(data)
 

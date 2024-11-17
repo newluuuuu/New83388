@@ -110,7 +110,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             logger.info(f"User {user_id} subscription expires on {formatted_expiry}")
         except ValueError as e:
             logger.error(f"Date parsing error: {e}")
-            await update.message.reply_text("There was an error processing your subscription. Please contact admin.")
+            await update.message.reply_text("Oops! 😅 Something went wrong with your subscription. Please reach out to our admin for help! 🙏")
             return
 
         if time_left >= 0:
@@ -125,14 +125,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text(
-                f'Welcome to <b>DEVSCOTT AUTO F Bot</B>\nYour subscription ends on\n <b>{formatted_expiry}</b>.',
+                f'Hey there! 👋 Welcome to <b>DEVSCOTT AUTO F Bot</B>\nYour subscription is active until\n <b>{formatted_expiry}</b> 📅',
                 reply_markup=reply_markup,
                 parse_mode="HTML"
             )   
         else:
 
             await update.message.reply_text(
-                f"<b>Your Subscription Has Ended, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>",
+                f"Uh oh! 😕 Your subscription has ended. Please contact our <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">friendly admin</a> to renew! ✨",
                 parse_mode="HTML"
             )
 
@@ -142,7 +142,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         logger.info(f"User {user_id} is not authorized or subscription has expired.")
         await update.message.reply_text(
-            f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>",
+            f"Hey! 👋 Looks like you don't have an active subscription yet. Reach out to our <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">awesome admin</a> to get started! ✨",
             parse_mode="HTML"
         )
 
@@ -169,15 +169,15 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     save_user_data(data)  
 
                     post_index = len(data["users"][user_id]["post_messages"])  
-                    await update.message.reply_text(f"*Message saved for forwarding with index number {post_index} ✅*\n\n*Add more messages with*\n`/post message here`", parse_mode="Markdown")
+                    await update.message.reply_text(f"Awesome! 🎉 Your message has been saved with index number {post_index} ✅\n\nWant to add more? Just use\n`/post your message here` 📝", parse_mode="Markdown")
                 except Exception as e:
-                    await update.message.reply_text(f"Failed to save the message due to an error: {e}")
+                    await update.message.reply_text(f"Oops! 😅 Couldn't save your message: {e}")
             else:
-                await update.message.reply_text("User not found in the system.")
+                await update.message.reply_text("Hmm... 🤔 I can't find you in the system.")
         else:
-            await update.message.reply_text("Usage: `/post <message / text link>`", parse_mode="Markdown")
+            await update.message.reply_text("Here's how to use it: `/post your message or text link here` 📝", parse_mode="Markdown")
     else:
-        await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
+        await update.message.reply_text(f"Hey! 👋 You'll need an active subscription first. Contact our <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">friendly admin</a> to get started! ✨", parse_mode="HTML")
 
 async def delpost(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)
@@ -195,11 +195,11 @@ async def delpost(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                         data["users"][user_id]["post_messages"] = []  
                         save_user_data(data)
 
-                        await update.message.reply_text(f"All posts have been deleted. {len(deleted_posts)} posts removed.", parse_mode="Markdown")
+                        await update.message.reply_text(f"All done! 🧹 I've cleared all {len(deleted_posts)} posts for you ✨", parse_mode="Markdown")
                     except Exception as e:
-                        await update.message.reply_text(f"Failed to delete posts due to an error:\n<pre> {e}</pre>", parse_mode="HTML")
+                        await update.message.reply_text(f"Oops! 😅 Something went wrong:\n<pre> {e}</pre>", parse_mode="HTML")
                 else:
-                    await update.message.reply_text("No posts found for this user.")
+                    await update.message.reply_text("Hmm... 🤔 I couldn't find any posts to delete.")
 
             else:
 
@@ -215,7 +215,7 @@ async def delpost(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
                             post_messages.remove(post_message)
                             save_user_data(data)
-                            await update.message.reply_text(f"Deleted post:\n `{post_message}`", parse_mode="Markdown")
+                            await update.message.reply_text(f"Got it! 🗑️ I've deleted this post:\n `{post_message}`", parse_mode="Markdown")
                         else:
 
                             try:
@@ -223,19 +223,19 @@ async def delpost(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                                 if 0 <= post_index < len(post_messages):
                                     deleted_post = post_messages.pop(post_index)
                                     save_user_data(data)
-                                    await update.message.reply_text(f"Deleted post:\n `{deleted_post}`", parse_mode="Markdown")
+                                    await update.message.reply_text(f"Done! 🗑️ I've deleted this post:\n `{deleted_post}`", parse_mode="Markdown")
                                 else:
-                                    await update.message.reply_text("Invalid post index.")
+                                    await update.message.reply_text("Oops! 🤔 That post index doesn't exist.")
                             except ValueError:
-                                await update.message.reply_text("Invalid input. Use the index or the exact message text to delete a post.")
+                                await update.message.reply_text("Hey! 👋 Please use either the post number or the exact message text to delete a post.")
                     except Exception as e:
-                        await update.message.reply_text(f"Failed to delete the post due to an error: {e}")
+                        await update.message.reply_text(f"Uh oh! 😅 Something went wrong: {e}")
                 else:
-                    await update.message.reply_text("No posts found for this user.")
+                    await update.message.reply_text("Hmm... 🤔 I couldn't find any posts to delete.")
         else:
-            await update.message.reply_text("Usage: `/delpost <post index or message>`", parse_mode="Markdown")
+            await update.message.reply_text("Here's how to use it: `/delpost post number or message` 📝", parse_mode="Markdown")
     else:
-        await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
+        await update.message.reply_text(f"Hey! 👋 You'll need an active subscription first. Contact our <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">friendly admin</a> to get started! ✨", parse_mode="HTML")
 
 from datetime import datetime, timedelta  
 
@@ -1060,8 +1060,14 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await message.reply_text(settings_text, reply_markup=reply_markup, parse_mode="Markdown")
 
 async def message_source(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = str(update.callback_query.from_user.id)
-    message = update.callback_query.message
+    if update.callback_query:
+        user_id = str(update.callback_query.from_user.id)
+        message = update.callback_query.message
+        is_callback = True
+    else:
+        user_id = str(update.message.from_user.id)
+        message = update.message
+        is_callback = False
 
     data = load_user_data()
     user_data = data["users"].get(user_id, {})
@@ -1074,11 +1080,20 @@ async def message_source(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         [InlineKeyboardButton("Back 🔙", callback_data='settings')]
     ]
 
-    await message.edit_text(
-        f"*Current Source Settings:\n {current_source.upper()} ✅*",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode= "Markdown"
-    )
+    display_source = "MY POST" if current_source == "mypost" else "SAVED MESSAGES"
+    
+    if is_callback:
+        await message.edit_text(
+            f"*Current Source Settings:\n {display_source.upper()} ✅*",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode= "Markdown"
+        )
+    else:
+        await message.reply_text(
+            f"*Current Source Settings:\n {display_source.upper()} ✅*",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode= "Markdown"
+        )
 
 async def my_posts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
@@ -1098,12 +1113,12 @@ async def my_posts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     post_messages = user_data.get('post_messages', [])
 
     if post_messages:
-        message_text = "*Your Post Messages:*\n\n"
+        message_text = "📝 *Here are your saved posts:*\n\n"
         for i, post in enumerate(post_messages, start=1):
-            message_text += f"*{i}.* `{post}`\n\n"
-        message_text += "\n*Use* `/post message` *to update your posts.*"
+            message_text += f"*{i}.* 💬 `{post}`\n\n"
+        message_text += "\n✨ *Want to update your posts? Just use* `/post message` *to add new ones!* ✨"
     else:
-        message_text = "*No post messages found.*"
+        message_text = "📭 *Oops! Looks like you haven't added any posts yet.*"
 
     keyboard = [[InlineKeyboardButton("Back 🔙", callback_data='settings')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1134,10 +1149,10 @@ async def my_groups(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if user_groups:
         group_count = len(user_groups)
-        group_list = "\n".join([f"{idx+1}. `{group}`" for idx, group in enumerate(user_groups)])
-        message_text = f"*Groups Added: {group_count}*\n\n{group_list}"
+        group_list = "\n".join([f"{idx+1}. 👥 `{group}`" for idx, group in enumerate(user_groups)])
+        message_text = f"🌟 *Awesome! You have {group_count} groups:*\n\n{group_list}"
     else:
-        message_text = "*No groups added*"
+        message_text = "😅 *You haven't added any groups yet. Let's add some!*"
 
     keyboard = [
         [InlineKeyboardButton("Back 🔙", callback_data='settings')]
@@ -1150,7 +1165,6 @@ async def my_groups(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
 
         await message.reply_text(message_text, reply_markup=reply_markup, parse_mode="Markdown")
-
 async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
         [InlineKeyboardButton("HELP GUIDE ❕", callback_data='help')],
@@ -1182,7 +1196,7 @@ def get_user_keywords(user_data):
     match_option = user_data.get("match_option", "exact")
 
     if not keywords:
-        return "You haven't set any keywords yet."
+        return "📝 Looks like you haven't set any keywords yet! Let's add some to get started 🚀"
 
     response_text = "<b>Here are your keywords and responses:</b>\n\n"
     response_text += f"<b>Matching Option:</b> {match_option.capitalize()}\n\n"
@@ -1190,7 +1204,7 @@ def get_user_keywords(user_data):
     response_text += "=====================\n"
 
     for keyword, response in keywords.items():
-        response_text += f"<code>{keyword}</code> ➡️ <code>{response}</code>\n"
+        response_text += f"🔹 <code>{keyword}</code> ➡️ <code>{response}</code>\n"
 
     return response_text
 
@@ -1212,9 +1226,9 @@ async def keywords_command(update, context):
     response_text = get_user_keywords(user_data)
 
     keyboard = [
-        [InlineKeyboardButton("Add Keyword", callback_data="add_keyword")],
-        [InlineKeyboardButton("Del Keyword", callback_data="del_keyword")],
-        [InlineKeyboardButton("Back 🔙", callback_data="auto_reply")]
+        [InlineKeyboardButton("➕ Add New Keyword", callback_data="add_keyword")],
+        [InlineKeyboardButton("🗑️ Remove Keyword", callback_data="del_keyword")],
+        [InlineKeyboardButton("↩️ Back", callback_data="auto_reply")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -1235,27 +1249,26 @@ async def stopword_command(update, context):
     try:
         keyword_to_remove = ' '.join(context.args)  
     except IndexError:
-        await update.message.reply_text("Please specify the keyword you want to remove. Example: /stopword Good Morning")
+        await update.message.reply_text("🤔 Oops! Please tell me which keyword you want to remove.\n\n💡 Example: /stopword Good Morning")
         return
 
     keywords = user_data.get("keywords", {})
     if keyword_to_remove in keywords:
 
-        message = await update.message.reply_text("<b>Deleting ▪▪</b>", parse_mode="HTML")
+        message = await update.message.reply_text("🔄 <b>Processing</b>", parse_mode="HTML")
         await asyncio.sleep(0.2)
-        await message.edit_text("<b>Deleting ▪▪▪▪</b>", parse_mode="HTML")
+        await message.edit_text("🔄 <b>Almost there...</b>", parse_mode="HTML")
         await asyncio.sleep(0.2)
-        await message.edit_text("<b>Deleting ▪▪▪▪▪▪</b>", parse_mode="HTML")
+        await message.edit_text("🔄 <b>Just a moment...</b>", parse_mode="HTML")
         await asyncio.sleep(0.4)
 
         del keywords[keyword_to_remove]
 
         save_user_data(data)
 
-        await message.edit_text(f"<b>Deleted '{keyword_to_remove}' successfully ✅</b>", parse_mode="HTML")
+        await message.edit_text(f"✨ <b>Success! '{keyword_to_remove}' has been removed from your keywords!</b> 🎉", parse_mode="HTML")
     else:
-        await update.message.reply_text(f"<b>Keyword '{keyword_to_remove}' not found in your list ❌</b>", parse_mode="HTML")
-
+        await update.message.reply_text(f"🔍 <b>Hmm... I couldn't find '{keyword_to_remove}' in your keywords list</b> 🤔", parse_mode="HTML")
 async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     user_id = str(query.from_user.id).strip()
@@ -1274,27 +1287,43 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     elif query.data == "set_case_insensitive":
         user_data["match_option"] = "case_insensitive"
     elif query.data == "toggle_auto_reply":
-        user_data = data["users"].get(user_id)  
+        user_data = data["users"].get(user_id)
 
         keywords = user_data.get("keywords", {})
         if not keywords:
-            await query.answer("No keywords have been set for you ❌\n Please add at least one word\n (/setword Message | Response)", show_alert=True)
+            await query.answer(
+                "No keywords have been set for you ❌\nPlease add at least one keyword using /setword (Message | Response).",
+                show_alert=True
+            )
             return
 
         if user_data.get("forwarding_on", False):
-            await query.answer("Auto-reply cannot be toggled while forwarding is active ❌", show_alert=True)
-        else:
+            await query.answer(
+                "Auto-reply cannot be toggled while forwarding is active ❌",
+                show_alert=True
+            )
+            return
 
-            user_data["auto_reply_status"] = not user_data.get("auto_reply_status", False)
+        user_data["auto_reply_status"] = not user_data.get("auto_reply_status", False)
+        save_user_data(data)
 
-            save_user_data(data)
-
-            await query.answer(f"Auto-reply is now {'enabled' if user_data['auto_reply_status'] else 'disabled'} ✅", show_alert=True)
-
+        try:
             if user_data["auto_reply_status"]:
                 await start_telethon_client(user_id, context)  
             else:
-                await stop_telethon_client(user_id)
+                await stop_telethon_client(user_id)  
+
+            await query.answer(
+                f"Auto-reply is now {'enabled' if user_data['auto_reply_status'] else 'disabled'} ✅",
+                show_alert=True
+            )
+        except Exception as e:
+
+            print(f"Error while toggling auto-reply: {e}")
+            await query.answer(
+                f"Failed to toggle auto-reply: {str(e)} ❌",
+                show_alert=True
+            )
 
     else:
         await all_callback(update, context)
@@ -1373,7 +1402,7 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "   - Example: <code>/post Hello everyone!</code> sets the message <code>Hello everyone!</code> to be forwarded.\nSet telegram message link if you want the message to be forwarded\n"
         "   - Use <code>/mypost</code> to check the posts you have added\n"
         "   - Multiple Posts can be added, use <code>/delpost index \\ message</code> to delete a post\n<code>/delpost all</code> to delete all post set\n\n"
-        "2ii. <code>Message Source</code> - Sets the source of the messages to forward.\n"
+        "2ii. <code>Message Source</code>\n<pre>/msource</pre> - Sets the source of the messages to forward.\n"
         "   - You can choose between <b>My Post 📝</b> or <b>Saved Messages 📥</b>.\n"
         "   - <b>My Post 📝</b> will forward messages from your post messages <code>/post message</code> (default option for all users).\n"
         "   - <b>Saved Messages 📥</b> will forward messages from your saved messages in Telegram.\n"
@@ -1411,8 +1440,6 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
         await query.edit_message_text(text= help_text, parse_mode='HTML', reply_markup=back_button())
 
-    elif query.data == 'login':
-        await query.edit_message_text("Usage: /login <phone_number>", reply_markup=back_button())
     elif query.data == 'settings':
         await settings(update, context) 
     elif query.data == 'mypost':
@@ -1429,7 +1456,7 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         ]
 
         await update.callback_query.edit_message_text(
-            f"*Current Source Settings:\n MY POST 📝 ✅*",
+            f"*Current Source Settings:\n MY POST ✅*",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown"
         )
@@ -1447,7 +1474,7 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
         await update.callback_query.edit_message_text(
-            f"*Current Source Settings:\n SAVED MESSAGES 📥 ✅*",
+            f"*Current Source Settings:\n SAVED MESSAGES ✅*",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode = "Markdown"
         )
@@ -1474,6 +1501,7 @@ def main():
     application.add_handler(CommandHandler("addgroup", add_group))
     application.add_handler(CommandHandler("delgroup", del_group))
     application.add_handler(CommandHandler("setword", set_word))
+    application.add_handler(CommandHandler("msource", message_source))
     application.add_handler(CommandHandler("keywords", keywords_command))
     application.add_handler(CommandHandler("stopword", stopword_command))
     application.add_handler(CommandHandler("time", time))
