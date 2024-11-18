@@ -25,6 +25,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 scheduler = AsyncIOScheduler()
 ADMIN_IDS = os.getenv("ADMIN_IDS").split(',') 
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "devscottreal")
+session_lock = asyncio.Lock()
 
 def load_config():
     try:
@@ -747,6 +748,7 @@ def extract_group_and_topic_id(group_link: str):
         return group_username, topic_id
     return None, None
 
+
 async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: str) -> None:
     try:
 
@@ -760,6 +762,22 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         interval = int(user_data.get('interval', 60))  
         user_groups = user_data.get('groups', [])
         forwarding_on = user_data.get('forwarding_on', False)
+        session_file = f'{user_id}.session'
+
+        async with session_lock:
+            client = TelegramClient(session_file, api_id, api_hash)
+            await client.connect()
+
+            if not await client.is_user_authorized():
+                await client.disconnect()
+                if os.path.exists(session_file):
+                    os.remove(session_file)
+                await offf(update, context, user_id, reason="Your session was terminated. Please log in again ❌")
+                print(f"Session was terminated for user {user_id}")
+                return
+            print(f"User {user_id} is authorized")
+            await client.disconnect()
+            await asyncio.sleep(0.2)
 
         if not forwarding_on:
             print("Forwarding is disabled for this user.")
@@ -781,9 +799,6 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             post_index = 0 
         async with TelegramClient(f'{user_id}.session', api_id, api_hash) as client:
 
-            if not await client.is_user_authorized():
-                print("User is not authorized.")
-                return
             current_post = post_message[post_index]
             for group_link in user_groups:
                 retry_count = 2
@@ -868,9 +883,25 @@ async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user
         interval = int(user_data.get('interval', 60))
         user_groups = user_data.get('groups', [])
         forwarding_on = user_data.get('forwarding_on', False)
+        session_file = f'{user_id}.session'
+
+        async with session_lock:
+            client = TelegramClient(session_file, api_id, api_hash)
+            await client.connect()
+
+            if not await client.is_user_authorized():
+                await client.disconnect()
+                if os.path.exists(session_file):
+                    os.remove(session_file)
+                await offf(update, context, user_id, reason="Your session was terminated. Please log in again ❌")
+                print(f"Session was terminated for user {user_id}")
+                return
+            print(f"User {user_id} is authorized")
+            await client.disconnect()
+            await asyncio.sleep(0.2)
 
         if not forwarding_on:
-            print("Forwarding is disabled for this user.")
+            print(f"Forwarding is disabled for {user_id}")
             await offf(update, context, user_id, reason="Forwarding is disabled")
             return  
 
@@ -1031,6 +1062,7 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_data = config_data["users"].get(user_id, {})
         user_groups = user_data.get('groups', [])
         interval = user_data.get('interval', "Not set")
+        forwarding_status = user_data.get('forwarding_on', False)
         group_count = len(user_groups)
         if user_groups:
             formatted_groups = "\n".join([f"`{group}`" for group in user_groups])
@@ -1039,18 +1071,21 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         else:
             group_info = "No Group has been added"
 
-        settings_text = (f"*Your Settings*\n\n"
-                        f"*- Groups Added: {group_count}*\n"
-                        f"*- Interval: {interval} seconds*")
-
+        session_exists = os.path.exists(f"{user_id}.session")
+        settings_text = (f"*📱 Settings Dashboard*\n\n"
+                        f"*📊 Status Overview:*\n"
+                        f"*└ 👥 Groups: {group_count}*\n"
+                        f"*└ ⏱️ Interval: {interval} seconds*\n"
+                        f"*└ 📤 Forwarding: {'Active ✅' if forwarding_status else 'Inactive ❌'}*\n"
+                        f"*└ 🔐 Logged in: {'YES ✅' if session_exists else 'NO ❌'}*")
         keyboard = [
-            [InlineKeyboardButton("My Post 📝", callback_data='my_post'), InlineKeyboardButton("My Groups 👥 ", callback_data='my_groups')],
-            [InlineKeyboardButton("Add Group ➕ ", callback_data='add_group'), InlineKeyboardButton("Remove Group ❌", callback_data='remove_group')],
-            [InlineKeyboardButton("Set Time ⏲", callback_data='set_time'), InlineKeyboardButton("Toggle Forwarding ⏩", callback_data='on_off')],
-            [InlineKeyboardButton("Logout 🚪", callback_data='logout'), InlineKeyboardButton("Message Source 📝📥", callback_data='msg_source')],
-            [InlineKeyboardButton("Back 🔙", callback_data='back')]
+            [InlineKeyboardButton("My Posts 📝", callback_data='my_post'), InlineKeyboardButton("My Groups 👥", callback_data='my_groups')],
+            [InlineKeyboardButton("Add Group ➕", callback_data='add_group'), InlineKeyboardButton("Remove Group ➖", callback_data='remove_group')],
+            [InlineKeyboardButton("Set Interval ⏱️", callback_data='set_time'), InlineKeyboardButton("Toggle Forward ▶️", callback_data='on_off')],
+            [InlineKeyboardButton("Logout 🔓", callback_data='logout'), InlineKeyboardButton("Message Source 📨", callback_data='msg_source')],
+            [InlineKeyboardButton("Back ◀️", callback_data='back')]
         ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        reply_markup = InlineKeyboardMarkup(keyboard)    
     else:
         await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
 
@@ -1332,22 +1367,22 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     save_user_data(data)
 
     match_option = user_data["match_option"]
-    auto_reply_status = "On" if user_data.get("auto_reply_status", False) else "Off"
-    auto_reply_text = "Off" if user_data.get("auto_reply_status", False) else "On"
+    auto_reply_status = "Enabled ✅" if user_data.get("auto_reply_status", False) else "Disabled ❌"
+    auto_reply_text = "Disable 🔴" if user_data.get("auto_reply_status", False) else "Enable 🟢"
 
     keyboard = [
-        [InlineKeyboardButton(f"Exact Match {'✅' if match_option == 'exact' else ''}", callback_data='set_exact')],
-        [InlineKeyboardButton(f"Partial Match {'✅' if match_option == 'partial' else ''}", callback_data='set_partial')],
-        [InlineKeyboardButton(f"Case Insensitive {'✅' if match_option == 'case_insensitive' else ''}", callback_data='set_case_insensitive')],
-        [InlineKeyboardButton(f"Turn {auto_reply_text}", callback_data='toggle_auto_reply')],
-        [InlineKeyboardButton("My Keywords", callback_data='words')],
-        [InlineKeyboardButton("🔙", callback_data='back')]
+        [InlineKeyboardButton(f"Exact Match {'✅' if match_option == 'exact' else '❌'}", callback_data='set_exact')],
+        [InlineKeyboardButton(f"Partial Match {'✅' if match_option == 'partial' else '❌'}", callback_data='set_partial')],
+        [InlineKeyboardButton(f"Case Insensitive {'✅' if match_option == 'case_insensitive' else '❌'}", callback_data='set_case_insensitive')],
+        [InlineKeyboardButton(f"{auto_reply_text}", callback_data='toggle_auto_reply')],
+        [InlineKeyboardButton("📝 My Keywords", callback_data='words')],
+        [InlineKeyboardButton("🔙 Back", callback_data='back')]
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await query.edit_message_text(
-        f"Your Auto-reply settings\n\n*Match Option: {match_option}✅*\n*Mode: {auto_reply_status}✅*",
+        f"⚙️*Your Auto-Reply Settings*\n\n🎯 Match Mode: `{match_option}`✔\n📊 Status: `{auto_reply_status}`",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )

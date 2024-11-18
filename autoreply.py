@@ -2,6 +2,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telethon.sync import TelegramClient
 from telethon import TelegramClient, events
+from telethon.errors.rpcerrorlist import AuthKeyUnregisteredError
 import re
 import os
 import json
@@ -124,7 +125,7 @@ async def keyword_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.callback_query.edit_message_text(
-        f"⚙️ *Auto-Reply Settings*\n\n🎯 Match Mode: `{match_option}`\n📊 Status: `{auto_reply_status}`",
+        f"⚙️*Your Auto-Reply Settings*\n\n🎯 Match Mode: `{match_option}`✔\n📊 Status: `{auto_reply_status}`",
         reply_markup=reply_markup,
         parse_mode="Markdown"
     )
@@ -205,7 +206,8 @@ async def start_telethon_client(user_id, context=None):
         if not await client.is_user_authorized():
 
             await client.disconnect()
-            os.remove(session_file)
+            if os.path.exists(session_file):  
+                os.remove(session_file)
             await context.bot.send_message(
                 chat_id=user_id,
                 text="🔒 *Authorization Failed*\n\n❌ Your session was terminated\n📝 Please log in again to continue",
@@ -219,6 +221,21 @@ async def start_telethon_client(user_id, context=None):
         await asyncio.sleep(3)
 
         await client.start()
+    
+    except AuthKeyUnregisteredError as e:
+        print(f"Authorization error for user {user_id}: {e}")
+        await client.disconnect()
+        if os.path.exists(session_file):  # To make sure the file exists before removing
+            os.remove(session_file)
+        if context:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="🔒 *Authorization Failed*\n\n❌ Your session was terminated\n📝 Please log in again to continue",
+                parse_mode="Markdown"
+            )
+        user_data["auto_reply_status"] = False
+        save_user_data(data)
+        return
 
     except Exception as e:
         print(f"Error starting Telethon client for user {user_id}: {e}")
@@ -226,60 +243,85 @@ async def start_telethon_client(user_id, context=None):
         save_user_data(data)
         return
 
-
-
     @client.on(events.NewMessage)
     async def handler(event):
-        chat = await event.get_chat()
-        chat_id = chat.id
-        chat_name = chat.title if hasattr(chat, 'title') else chat.username or chat_id
-        message_text = event.message.message
+        try:
+            chat = await event.get_chat()
+            chat_id = chat.id
+            chat_name = chat.title if hasattr(chat, 'title') else chat.username or chat_id
+            message_text = event.message.message
 
-        print(f"📥 Received message in {chat_name}")
+            print(f"📥 Received message in {chat_name}")
 
-        keywords = user_data.get("keywords", {})
-        match_option = user_data.get("match_option", "exact").lower()
+            keywords = user_data.get("keywords", {})
+            match_option = user_data.get("match_option", "exact").lower()
 
-        for keyword, response in keywords.items():
-            if match_option == "exact":
+            for keyword, response in keywords.items():
+                if match_option == "exact":
+                    pattern = r"^" + re.escape(keyword) + r"$"
+                    if re.match(pattern, message_text, re.IGNORECASE):
+                        print(f"✨ Exact match found in {chat_name}: {keyword}")
+                elif match_option == "partial":
+                    pattern = r"\b" + re.escape(keyword) + r"\b"
+                    if re.search(pattern, message_text, re.IGNORECASE):
+                        print(f"✨ Partial match found in {chat_name}: {keyword}")
+                elif match_option == "case_insensitive":
+                    if keyword.lower() in message_text.lower():
+                        print(f"✨ Case-insensitive match found in {chat_name}: {keyword}")
 
-                pattern = r"^" + re.escape(keyword) + r"$"
-                if re.match(pattern, message_text, re.IGNORECASE):
-                    print(f"✨ Exact match found in {chat_name}: {keyword}")
-            elif match_option == "partial":
+                if match_option in ["exact", "partial", "case_insensitive"] and (
+                    (match_option == "exact" and re.match(pattern, message_text, re.IGNORECASE)) or
+                    (match_option == "partial" and re.search(pattern, message_text, re.IGNORECASE)) or
+                    (match_option == "case_insensitive" and keyword.lower() in message_text.lower())
+                ):
+                    if chat_id in last_reply_time and (asyncio.get_event_loop().time() - last_reply_time[chat_id]) < 10:
+                        print(f"⏳ Cooldown active in {chat_name}")
+                        return
 
-                pattern = r"\b" + re.escape(keyword) + r"\b"
-                if re.search(pattern, message_text, re.IGNORECASE):
-                    print(f"✨ Partial match found in {chat_name}: {keyword}")
-            elif match_option == "case_insensitive":
+                    await asyncio.sleep(1)
 
-                if keyword.lower() in message_text.lower():
-                    print(f"✨ Case-insensitive match found in {chat_name}: {keyword}")
+                    if response.startswith("https://t.me/"):
+                        await send_message_from_link(client, event, response)
+                    else:
+                        await event.reply(response)
 
+                    print(f"📤 Replied with: {response}")
 
-            if match_option in ["exact", "partial", "case_insensitive"] and (
-                (match_option == "exact" and re.match(pattern, message_text, re.IGNORECASE)) or
-                (match_option == "partial" and re.search(pattern, message_text, re.IGNORECASE)) or
-                (match_option == "case_insensitive" and keyword.lower() in message_text.lower())
-            ):
-                if chat_id in last_reply_time and (asyncio.get_event_loop().time() - last_reply_time[chat_id]) < 10:
-                    print(f"⏳ Cooldown active in {chat_name}")
+                    last_reply_time[chat_id] = asyncio.get_event_loop().time()
+
+                    await asyncio.sleep(10)
+
                     return
 
-                await asyncio.sleep(1)
+        except AuthKeyUnregisteredError as e:
+            print(f"Authorization error for user {user_id}: {e}")
+            await client.disconnect()
+            if os.path.exists(session_file):  # Ensure file exists before deletion
+                os.remove(session_file)
+            if context:
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text="🔒 *Authorization Failed*\n\n❌ Your session was terminated\n📝 Please log in again to continue",
+                    parse_mode="Markdown"
+                )
+            user_data["auto_reply_status"] = False
+            save_user_data(data)
+            return
 
-                if response.startswith("https://t.me/"):
-                    await send_message_from_link(client, event, response)
-                else:
-                    await event.reply(response)
-
-                print(f"📤 Replied with: {response}")
-
-                last_reply_time[chat_id] = asyncio.get_event_loop().time()
-
-                await asyncio.sleep(10)
-
-                return
+        except Exception as e:
+            print(f"Unexpected error while handling message: {e}")
+            await client.disconnect()
+            if os.path.exists(session_file):
+                os.remove(session_file)
+            if context:
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text="⚠️ *Unexpected Error*\n\n❌ Your session was terminated unexpectedly\n📝 Please log in again to continue",
+                    parse_mode="Markdown"
+                )
+            user_data["auto_reply_status"] = False
+            save_user_data(data)
+            return
 
     try:
         print(f"✅ Telethon client started successfully for user {user_id}")
@@ -294,7 +336,7 @@ async def start_telethon_client(user_id, context=None):
         print(f"❌ Error starting Telethon client for user {user_id}: {e}")
         user_data["client_active"] = False
         save_user_data(data)
-
+        
 async def send_message_from_link(client, event, link):
 
     pattern = r"https://t.me/([a-zA-Z0-9_]+)/(\d+)"
