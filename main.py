@@ -119,17 +119,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             keyboard = [
                 [InlineKeyboardButton("HELP GUIDE ❕", callback_data='help')],
                 [InlineKeyboardButton("AUTO RESPONDER GUIDE❕", url='https://telegra.ph/AUTO-RESPONDER-GUIDE-11-11')],
-                [InlineKeyboardButton("API AND HASH ID 🎥", url='https://youtu.be/s7Ys5reuxHc?si=e3724tW8NhpzbvJR')],
+                [InlineKeyboardButton("API AND HASH ID 🎥", url='https://youtu.be/8naENmP3rg4?si=LVxsTXSSI864t6Kv')],
                 [InlineKeyboardButton("LOGIN WITH TELEGRAM 🔑", callback_data='login')],
                 [InlineKeyboardButton("Settings ⚙️", callback_data='settings')],
                 [InlineKeyboardButton("Auto Reply ⚙️", callback_data='auto_reply')]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text(
-                f'Hey there! 👋 Welcome to <b>DEVSCOTT AUTO F Bot</B>\nYour subscription is active until\n <b>{formatted_expiry}</b> 📅',
-                reply_markup=reply_markup,
-                parse_mode="HTML"
-            )   
+            await update.message.reply_text(  
+                "===================================\n"  
+                "       👋 Welcome to\n"  
+                "     <b>DEVSCOTT AUTO FORWARDER Bot</b>\n"  
+                "-----------------------------------\n"  
+                " Your subscription is active until:\n"  
+                f"       <b>{formatted_expiry}</b> 📅\n"  
+                "===================================",  
+                reply_markup=reply_markup,  
+                parse_mode="HTML"  
+            )  
         else:
 
             await update.message.reply_text(
@@ -332,7 +338,7 @@ async def api_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             data["users"][user_id]["api_id"] = api_id
 
             save_user_data(data)
-            await update.message.reply_text("*API ID saved✅*", parse_mode="Markdown")
+            await update.message.reply_text("🔑 *API ID successfully saved!* ✅\n\n_Your API ID has been securely stored in our system._", parse_mode="Markdown")
         else:
             await update.message.reply_text("Usage: /api_id <API_ID>")
     else:
@@ -351,11 +357,69 @@ async def api_hash(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             data["users"][user_id]["api_hash"] = api_hash
 
             save_user_data(data)
-            await update.message.reply_text("*API Hash saved ✅*", parse_mode="Markdown")
+            await update.message.reply_text("🔑 *API HASH successfully saved!* ✅\n\n_Your API HASH has been securely stored in our system._", parse_mode="Markdown")
         else:
             await update.message.reply_text("Usage:\n `/hash <API_HASH>`", parse_mode="Markdown")
     else:
         await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
+
+def get_otp_keyboard() -> InlineKeyboardMarkup:
+    keys = [
+        [InlineKeyboardButton(str(i), callback_data=f"otp_{i}") for i in range(1, 4)],
+        [InlineKeyboardButton(str(i), callback_data=f"otp_{i}") for i in range(4, 7)],
+        [InlineKeyboardButton(str(i), callback_data=f"otp_{i}") for i in range(7, 10)],
+        [InlineKeyboardButton("0", callback_data="otp_0"),
+         InlineKeyboardButton("✅", callback_data="otp_submit"),
+         InlineKeyboardButton("❌", callback_data="otp_delete")]
+    ]
+    return InlineKeyboardMarkup(keys)
+
+async def otp_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    otp_input = context.user_data.get('otp_input', "")
+
+    if query.data.startswith("otp_"):
+        action = query.data.split("_")[1]
+
+        if action == "submit":
+            if otp_input:
+                await query.edit_message_text(
+                    f"🔄 *Processing OTP Code:* `{otp_input}`\n\n🚀 *Please wait...*",
+                    parse_mode="Markdown"
+                )
+                await asyncio.sleep(1) 
+                await query.message.delete()
+                await otp(update, context)
+            else:
+                await query.message.reply_text("⚠️ *Error:* No OTP code entered!\n\n_Please try again._", parse_mode="Markdown")
+        elif action == "delete":
+            otp_input = otp_input[:-1]
+        else:
+            otp_input += action
+
+        context.user_data['otp_input'] = otp_input
+        new_message_text = (
+            "🔐 *Secure Login Verification*\n\n"
+            "📱 OTP has been sent to your phone!\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "🔹 Use the keyboard below\n"
+            "🔸 Or type `/otp 1 2 3 4 5`\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            f"📟 *Input OTP:* `{otp_input or '⌛ Waiting for input...'}`\n"
+            "━━━━━━━━━━━━━━━━━━━"
+        )
+        if query.message.text != new_message_text:
+            try:
+                otp_message = await query.edit_message_text(
+                    new_message_text,
+                    parse_mode="Markdown",
+                    reply_markup=get_otp_keyboard()
+                )
+                context.user_data['keyboard_message_id'] = otp_message.message_id
+
+            except Exception as e:
+                print(f"Error updating message: {e}")
 
 async def login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id) 
@@ -378,28 +442,73 @@ async def login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                         sent_code = await client.send_code_request(phone_number)
                         context.user_data['phone_number'] = phone_number
                         context.user_data['phone_code_hash'] = sent_code.phone_code_hash  
-                        await update.message.reply_text(
-                            "*OTP sent to your phone ✅*.\n Use `/otp <code>` to continue.\n\n"
-                            "Please space out your OTP Code when sending it to the bot\n"
-                            "`/otp 2 3 4 5 6`"
-                        ,parse_mode="Markdown")
+                        context.user_data['otp_input'] = "" 
+                        otp_message = await update.message.reply_text(
+                            "🔐 *Secure Login Verification*\n\n"
+                            "📱 OTP has been sent to your phone!\n"
+                            "━━━━━━━━━━━━━━━━━━━\n"
+                            "🔹 Use the keyboard below\n"
+                            "🔸 Or type `/otp 1 2 3 4 5`\n"
+                            "━━━━━━━━━━━━━━━━━━━\n"
+                            "📟 *Input OTP:* `⌛ Waiting for input...`\n"
+                            "━━━━━━━━━━━━━━━━━━━",
+                            parse_mode="Markdown",
+                            reply_markup=get_otp_keyboard()
+                        )
+                        context.user_data['keyboard_message_id'] = otp_message.message_id
                     except Exception as e:
-                        await update.message.reply_text(f"Failed to send OTP: {e}")
+                        await update.message.reply_text(f"❌ *Error:* Failed to send OTP!\n\n_Details: {e}_", parse_mode="Markdown")
                 else:
-                    await update.message.reply_text("You are already logged in.")
+                    await update.message.reply_text("✅ *You are already logged in!*", parse_mode="Markdown")
             else:
-                await update.message.reply_text("Usage: /login <phone_number>")
+                await update.message.reply_text("ℹ️ *Usage:* `/login <phone_number>`\n\n_Example: /login +1234567890_", parse_mode="Markdown")
         else:
-            await update.message.reply_text("*API ID and Hash not found ❌*. Set them with `/api_id` and `/hash`", parse_mode="Markdown")
+            await update.message.reply_text(
+                "⚠️ *Configuration Missing*\n\n"
+                "API credentials not found!\n"
+                "━━━━━━━━━━━━━━━━━━━\n"
+                "🔸 Set API ID with `/api_id`\n"
+                "🔹 Set Hash with `/hash`\n"
+                "━━━━━━━━━━━━━━━━━━━",
+                parse_mode="Markdown"
+            )
     else:
-        await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
-
+        await update.message.reply_text(
+            "⛔️ *Access Restricted*\n\n"
+            f"📞 Please contact @{ADMIN_USERNAME}\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "❗️ No active subscription found\n"
+            "━━━━━━━━━━━━━━━━━━━",
+            parse_mode="Markdown"
+        )
 async def otp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = str(update.message.from_user.id)  
-    otp_parts = context.args  
+    if update.message:  # Regular message
+        user_id = str(update.message.from_user.id)
+        otp_parts = context.args
+        message = update.message
+        try:
+            await context.bot.delete_message(chat_id=message.chat_id, message_id=message.message_id)
+        except Exception as e:
+            print(f"Error deleting user message: {e}")
+    elif update.callback_query:  # Callback query
+        user_id = str(update.callback_query.from_user.id)
+        otp_parts = context.user_data.get('otp_input', "")  
+        message = update.callback_query.message
+    else:
+        return
+    
+    if 'keyboard_message_id' in context.user_data:
+        try:
+            await context.bot.delete_message(
+                chat_id=message.chat_id,
+                message_id=context.user_data['keyboard_message_id']
+            )
+            del context.user_data['keyboard_message_id']  # Remove it from context after deletion
+        except Exception as e:
+            print(f"Error deleting keyboard message: {e}")
 
     if otp_parts:
-        otp_code = ''.join(otp_parts) 
+        otp_code = ''.join(otp_parts) if isinstance(otp_parts, list) else otp_parts
         phone_number = context.user_data.get('phone_number')
         phone_code_hash = context.user_data.get('phone_code_hash')  
 
@@ -418,21 +527,50 @@ async def otp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     if not await client.is_user_authorized():
                         try:
                             await client.sign_in(phone=phone_number, code=otp_code, phone_code_hash=phone_code_hash)
-                            await update.message.reply_text("OTP accepted! You're now logged in.")
+                            await message.reply_text(
+                                "🎉 *Success! Login Complete* ✅\n\n"
+                                "📱 Your account has been successfully authenticated\n"
+                                "━━━━━━━━━━━━━━━━━━━\n"
+                                "🔐 You can now use all available features\n"
+                                "━━━━━━━━━━━━━━━━━━━",
+                                parse_mode="Markdown"
+                            )
                         except SessionPasswordNeededError:
-                            await update.message.reply_text("*2FA is required ❕*\n Please enter your 2FA password with\n `/2fa <password>`", parse_mode="Markdown")
+                            await message.reply_text(
+                                "🔐 *Two-Factor Authentication Required*\n\n"
+                                "📋 Please enter your 2FA password using:\n"
+                                "━━━━━━━━━━━━━━━━━━━\n"
+                                "🔑 `/2fa input password`\n"
+                                "━━━━━━━━━━━━━━━━━━━",
+                                parse_mode="Markdown"
+                            )
                         except Exception as e:
-                            await update.message.reply_text(f"Login failed: {e}")
+                            await message.reply_text(
+                                "❌ *Login Failed*\n\n"
+                                f"⚠️ Error: `{str(e)}`\n"
+                                "━━━━━━━━━━━━━━━━━━━\n"
+                                "🔄 Please try again\n"
+                                "━━━━━━━━━━━━━━━━━━━",
+                                parse_mode="Markdown"
+                            )
                     else:
-                        await update.message.reply_text("You are already logged in.")
+                        await message.reply_text(
+                            "✨ *Already Logged In*\n\n"
+                            "📱 Your session is active and ready\n"
+                            "━━━━━━━━━━━━━━━━━━━\n"
+                            "✅ No additional authentication needed\n"
+                            "━━━━━━━━━━━━━━━━━━━",
+                            parse_mode="Markdown"
+                        )                        
+                        await client.disconnect()
                 finally:
                     await client.disconnect()
             else:
-                await update.message.reply_text("API ID and Hash not found. Set them with\n\n /api_id and /hash.")
+                await message.reply_text("API ID and Hash not found. Set them with\n\n /api_id and /hash.")
         else:
-            await update.message.reply_text("Phone number or phone_code_hash not found. Start the login process with\n\n /login <phone_number>.")
+            await message.reply_text("Phone number or phone_code_hash not found. Start the login process with\n\n /login <phone_number>.")
     else:
-        await update.message.reply_text("Usage: `/otp 1 2 3 4 5`", parse_mode="Markdown")
+        await message.reply_text("Usage: `/otp 1 2 3 4 5`", parse_mode="Markdown")
 
 async def two_fa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id) 
@@ -452,11 +590,24 @@ async def two_fa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
             try:
                 await client.sign_in(password=password)
-                await update.message.reply_text("*2FA password accepted! You're now logged in ✅*", parse_mode="Markdown")
+                await update.message.reply_text(
+                    "✨ *2FA Authentication Successful*\n\n"
+                    "🔐 Password verified correctly\n"
+                    "━━━━━━━━━━━━━━━━━━━\n"
+                    "✅ You're now securely logged in\n"
+                    "━━━━━━━━━━━━━━━━━━━",
+                    parse_mode="Markdown"
+                )
             except Exception as e:
-                await update.message.reply_text(f"*Login failed: {e} ❌*", parse_mode="Markdown")
+                await update.message.reply_text(
+                    "❌ *2FA Authentication Failed*\n\n"
+                    f"⚠️ Error: `{str(e)}`\n"
+                    "━━━━━━━━━━━━━━━━━━━\n"
+                    "🔄 Please try again with correct password\n"
+                    "━━━━━━━━━━━━━━━━━━━",
+                    parse_mode="Markdown"
+                )            
             finally:
-
                 await client.disconnect()
         else:
             await update.message.reply_text("API ID and Hash not found. Set them with /api_id and /hash.")
@@ -579,62 +730,105 @@ async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             json.dump(config_data, f, indent=4)
 
         if added_groups:
-            added_groups_message = "\n".join(added_groups)
-            await update.message.reply_text(f"The following groups have been added for message forwarding:\n`{added_groups_message}`",parse_mode="Markdown")
+            added_groups_response = "*🎉 Groups Added for Forwarding:*\n"
+            added_groups_response += "╭───────┬───────────────╮\n"
+            added_groups_response += "│ *No*  │ *Group Link*   \n"
+            added_groups_response += "├───────┼───────────────┤\n"
+
+            for index, group in enumerate(added_groups, start=1):
+                added_groups_response += f"│ `{index}` │ `{group}`\n"
+
+            added_groups_response += "╰───────┴───────────────╯\n"
+            added_groups_response += "*✨ Thank you for participating! ✨*"
+
+            await update.message.reply_text(added_groups_response, parse_mode="Markdown")
+
         if already_in_list:
-            already_in_list_message = "\n".join(already_in_list)
-            await update.message.reply_text(f"The following groups were already in your forwarding list:\n`{already_in_list}`", parse_mode="Markdown")
+            already_in_list_response = "*⚠️ Groups Already in Your Forwarding List:*\n"
+            already_in_list_response += "╭───────┬───────────────────────╮\n"
+            already_in_list_response += "│ *No*  │ *Group Link*         │\n"
+            already_in_list_response += "├───────┼───────────────────────┤\n"
+
+            for index, group in enumerate(already_in_list, start=1):
+                already_in_list_response += f"│ `{index}` │ `{group}`\n"
+
+            already_in_list_response += "╰───────┴───────────────────────╯\n"
+            already_in_list_response += "*💡 No changes were made to these groups.*"
+
+            await update.message.reply_text(already_in_list_response, parse_mode="Markdown")
 
         if not added_groups and not already_in_list:
             await update.message.reply_text("Invalid Format❗\nUsage:\n`/addgroup\n<link1>\n<link2>`", parse_mode="Markdown")
 
     else:
         await update.message.reply_text(
-            "<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", 
+            f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", 
             parse_mode="HTML"
         )
 
-async def del_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = str(update.message.from_user.id)
 
-    if await is_authorized(user_id):
-        if context.args:
+async def del_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:  
+    user_id = str(update.message.from_user.id)  
+
+    if await is_authorized(user_id):  
+        if context.args:  
             group_ids = context.args  
-            removed_groups = []
-            not_found_groups = []
+            removed_groups = []  
+            not_found_groups = []  
 
-            with open("config.json", "r") as f:
-                config_data = json.load(f)
+            # Load user data from the JSON configuration  
+            with open("config.json", "r") as f:  
+                config_data = json.load(f)  
 
-            user_data = config_data["users"].get(user_id, {})
-            user_groups = user_data.get("groups", [])
+            user_data = config_data["users"].get(user_id, {})  
+            user_groups = user_data.get("groups", [])  
 
-            for group_id in group_ids:
-                if group_id in user_groups:
-                    user_groups.remove(group_id)
-                    removed_groups.append(group_id)
-                else:
-                    not_found_groups.append(group_id)
+            # Process group removal  
+            for group_id in group_ids:  
+                if group_id in user_groups:  
+                    user_groups.remove(group_id)  
+                    removed_groups.append(group_id)  
+                else:  
+                    not_found_groups.append(group_id)  
 
-            user_data["groups"] = user_groups
-            config_data["users"][user_id] = user_data
+            # Update user data  
+            user_data["groups"] = user_groups  
+            config_data["users"][user_id] = user_data  
 
-            with open("config.json", "w") as f:
-                json.dump(config_data, f, indent=4)
+            # Save updated data back to JSON  
+            with open("config.json", "w") as f:  
+                json.dump(config_data, f, indent=4)  
 
-            response = ""
-            if removed_groups:
-                response += f"Removed groups:\n`{' '.join(removed_groups)}`\n"
-            if not_found_groups:
-                response += f"Groups not found:\n`{' '.join(not_found_groups)}`."
+            # Construct the response message  
+            response = ""  
+            if removed_groups or not_found_groups:  
+                response += "*📋 Group Removal Summary:*\n"  
+                response += "╭───────┬───────────────────╮\n"
+                response += "│ *Status* │ *Group ID*     │\n"
+                response += "├───────┼───────────────────┤\n"
+  
 
-            await update.message.reply_text(response, parse_mode="Markdown")
-        else:
-            await update.message.reply_text("Usage:\n /delgroup <group1> <group2> ...")
-    else:
-        await update.message.reply_text(
-            "<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain=devscottreal\">Admin</a>", 
-            parse_mode="HTML"
+                # Add removed groups  
+                if removed_groups:
+                    for group_id in removed_groups:
+                        response += f"│ *Removed* │ `{group_id}`  │\n" 
+
+                # Add not found groups  
+                if not_found_groups:
+                    for group_id in not_found_groups:
+                        response += f"│ *Not Found* │ `{group_id}`│\n"
+
+                response += "╰───────┴───────────────────╯\n"  
+            else:  
+                response = "*✅ No groups were removed.*"  
+
+            await update.message.reply_text(response, parse_mode="Markdown")  
+        else:  
+            await update.message.reply_text("Usage:\n /delgroup <group1> <group2> ...")  
+    else:  
+        await update.message.reply_text(  
+            f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>",   
+            parse_mode="HTML"  
         )
 
 import json
@@ -710,16 +904,16 @@ async def off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 break
 
         if job_removed:
-            await update.message.reply_text("*Message forwarding has been disabled ❌*", parse_mode="Markdown")
+            await update.message.reply_text("✅ *Message Forwarding Status*\n\n❌ *Forwarding has been disabled*\n└ _Your automated message forwarding service is now turned off_", parse_mode="Markdown")
         else:
-            await update.message.reply_text("*No active forwarding job was found for you ❗*", parse_mode="Markdown")
+            await update.message.reply_text("ℹ️ *Forwarding Status*\n\n❗ *No Active Service Found*\n└ _There are no running forwarding tasks for your account_", parse_mode="Markdown")
 
         if not scheduler.get_jobs():
             scheduler.shutdown()
             print("Scheduler stopped as there are no remaining jobs.")
 
     else:
-        await update.message.reply_text("*Message forwarding is already disabled or not set up for you ❗*", parse_mode="Markdown")
+        await update.message.reply_text("*ℹ️ Message forwarding is already disabled or not set up for you ❗*", parse_mode="Markdown")
 
 def extract_chat_and_message_id(post_message: str):
     """
@@ -902,12 +1096,12 @@ async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user
 
         if not forwarding_on:
             print(f"Forwarding is disabled for {user_id}")
-            await offf(update, context, user_id, reason="Forwarding is disabled")
+            await offf(update, context, user_id, reason="Forwarding is disabled ❌")
             return  
 
         if not user_groups:
             print("No groups found for this user.")
-            await offf(update, context, user_id, reason="No groups found for forwarding.")
+            await offf(update, context, user_id, reason="No groups found for forwarding ❌")
             return
 
         async with TelegramClient(f'{user_id}.session', api_id, api_hash) as client:
@@ -969,6 +1163,7 @@ async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user
 
 async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)
+    
     if not await is_authorized(user_id):
         await update.message.reply_text(
             "⚠️ *Your subscription has expired or you are not authorized to enable forwarding.*\n"
@@ -979,13 +1174,20 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     data = load_user_data()
     user_data = data["users"].get(user_id, {})
+    message_source = user_data.get("message_source", "mypost")
 
-    required_keys = ["api_id", "api_hash", "post_messages", "groups", "interval"]
+    required_keys = ["api_id", "api_hash", "groups", "interval"]
     missing_keys = [key for key in required_keys if not user_data.get(key)]
 
     if user_data.get("auto_reply_status", False):
         await update.message.reply_text("*Forwarding cannot be toggled when Auto-reply is active ❌*", parse_mode="Markdown")
         return
+    if message_source == "saved_messages":
+        pass  
+    else:
+        if "post_messages" not in user_data or not user_data["post_messages"]:
+            await update.message.reply_text("*⚠️ Please set at least one* `post_messages` *to proceed or switch your Message Source*", parse_mode="Markdown")
+            return
 
     if missing_keys:
         await update.message.reply_text(
@@ -1024,7 +1226,6 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
         job_exists = any(job.args[0] == user_id for job in scheduler.get_jobs())
         if not job_exists:
-            message_source = user_data.get("message_source", "mypost")
             if message_source == "saved_messages":
                 scheduler.add_job(forward_saved, 'interval', seconds=int(user_data["interval"]), args=[update, context, user_id], max_instances=5)
             else:
@@ -1072,12 +1273,17 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             group_info = "No Group has been added"
 
         session_exists = os.path.exists(f"{user_id}.session")
-        settings_text = (f"*📱 Settings Dashboard*\n\n"
-                        f"*📊 Status Overview:*\n"
-                        f"*└ 👥 Groups: {group_count}*\n"
-                        f"*└ ⏱️ Interval: {interval} seconds*\n"
-                        f"*└ 📤 Forwarding: {'Active ✅' if forwarding_status else 'Inactive ❌'}*\n"
-                        f"*└ 🔐 Logged in: {'YES ✅' if session_exists else 'NO ❌'}*")
+        settings_text = (
+            "*📱 Settings Dashboard*\n\n"
+            "*📊 Status Overview:*\n"
+            "─────────────────────────────\n"
+            f"*└ 👥 Groups: {group_count}*\n"
+            f"*└ ⏱️ Interval: {interval} seconds*\n"
+            f"*└ 📤 Forwarding: {'Active ✅' if forwarding_status else 'Inactive ❌'}*\n"
+            f"*└ 🔐 Logged in: {'YES ✅' if session_exists else 'NO ❌'}*\n"
+            "─────────────────────────────"
+        )
+
         keyboard = [
             [InlineKeyboardButton("My Posts 📝", callback_data='my_post'), InlineKeyboardButton("My Groups 👥", callback_data='my_groups')],
             [InlineKeyboardButton("Add Group ➕", callback_data='add_group'), InlineKeyboardButton("Remove Group ➖", callback_data='remove_group')],
@@ -1109,25 +1315,35 @@ async def message_source(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     current_source = user_data.get("message_source", "mypost")
 
-    keyboard = [
-        [InlineKeyboardButton(f"My Post 📝 {'🟢' if current_source == 'mypost' else ''}", callback_data='mypost')],
-        [InlineKeyboardButton(f"Saved Messages 📥 {'🟢' if current_source == 'saved_messages' else ''}", callback_data='saved_messages')],
-        [InlineKeyboardButton("Back 🔙", callback_data='settings')]
-    ]
+    keyboard = [  
+    [InlineKeyboardButton(f"📄 My Post 📝 {'🟢' if current_source == 'mypost' else ''}", callback_data='mypost')],  
+    [InlineKeyboardButton(f"📥 Saved Messages {'🟢' if current_source == 'saved_messages' else ''}", callback_data='saved_messages')],  
+    [InlineKeyboardButton("🔙 Back", callback_data='settings')]  
+    ]  
 
-    display_source = "MY POST" if current_source == "mypost" else "SAVED MESSAGES"
-    
-    if is_callback:
-        await message.edit_text(
-            f"*Current Source Settings:\n {display_source.upper()} ✅*",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode= "Markdown"
-        )
-    else:
-        await message.reply_text(
-            f"*Current Source Settings:\n {display_source.upper()} ✅*",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode= "Markdown"
+    display_source = "MY POST" if current_source == "mypost" else "SAVED MESSAGES"  
+
+    if is_callback:  
+        await message.edit_text(  
+            "╔═══════════════╗\n"  
+            "  🔧 Current Source Settings\n"  
+            "╚═══════════════╝\n"  
+            f" *Current Source:* {display_source} ✅\n"  
+            "─────────────────\n"  
+            "Choose an option below:\n",  
+            reply_markup=InlineKeyboardMarkup(keyboard),  
+            parse_mode="Markdown"  
+        )  
+    else:  
+        await message.reply_text(  
+            "╔═══════════════╗\n"  
+            "        🔧 Current Source Settings\n"  
+            "╚═══════════════╝\n"  
+            f"  *Current Source:* {display_source} ✅\n"  
+            "─────────────────\n"  
+            "Choose an option below:\n",  
+            reply_markup=InlineKeyboardMarkup(keyboard),  
+            parse_mode="Markdown"  
         )
 
 async def my_posts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1204,7 +1420,7 @@ async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
         [InlineKeyboardButton("HELP GUIDE ❕", callback_data='help')],
         [InlineKeyboardButton("AUTO RESPONDER GUIDE❕", url='https://telegra.ph/AUTO-RESPONDER-GUIDE-11-11')],
-        [InlineKeyboardButton("API AND HASH ID 🎥", url='https://youtu.be/s7Ys5reuxHc?si=e3724tW8NhpzbvJR')],
+        [InlineKeyboardButton("API AND HASH ID 🎥", url='https://youtu.be/8naENmP3rg4?si=LVxsTXSSI864t6Kv')],
         [InlineKeyboardButton("LOGIN WITH TELEGRAM 🔑", callback_data='login')],
         [InlineKeyboardButton("Settings ⚙️", callback_data='settings')],
         [InlineKeyboardButton("Auto Reply ⚙️", callback_data='auto_reply')]
@@ -1413,11 +1629,30 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     elif query.data == "msg_source":
         await message_source(update, context)
     elif query.data == "add_keyword":
-        await query.edit_message_text("Use `/setword Message | Response`", parse_mode="Markdown", reply_markup=back_button())
+        await query.edit_message_text(
+            "*How to Add Auto-Reply Keywords:*\n\n"
+            "Use the format: `/setword Trigger | Response`\n\n"
+            "*Examples:*\n"
+            "`/setword Hello | Hi there!`\n"
+            "`/setword Price? | The price is $10`\n\n"
+            "Note: The `|` symbol separates the trigger word from the response",
+            parse_mode="Markdown",
+            reply_markup=back_button()
+        )
     elif query.data == "del_keyword":
         await query.edit_message_text("Use `/stopword <keyword>` to delete a set word", parse_mode="Markdown", reply_markup=back_button())
     elif query.data == 'logout':
         await logout(update, context)
+    elif query.data == 'login':
+            await query.edit_message_text(
+                "*How to Login:*\n\n"
+                "1. Use the command `/login` followed by your phone number\n"
+                "2. Include your country code\n\n"
+                "*Example:*\n`/login +1234567890`\n\n"
+                "Note: Make sure to include the '+' symbol before your country code",
+                parse_mode="Markdown",
+                reply_markup=back_button()
+            )    
     elif query.data == "my_post":
         await my_posts(update, context)
     elif query.data == "my_groups":
@@ -1477,41 +1712,53 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     elif query.data == 'settings':
         await settings(update, context) 
-    elif query.data == 'mypost':
 
-        user_data["message_source"] = "mypost"
-        data["users"][user_id] = user_data
-        save_user_data(data)
+    elif query.data == 'mypost':  
+        user_data["message_source"] = "mypost"  
+        data["users"][user_id] = user_data  
+        save_user_data(data)  
 
-        current_source = "My Post"
-        keyboard = [
-            [InlineKeyboardButton(f"My Post 📝 {'🟢' if current_source == 'My Post' else ''}", callback_data='mypost')],
-            [InlineKeyboardButton(f"Saved Messages 📥 {'🟢' if current_source == 'Saved Messages' else ''}", callback_data='saved_messages')],
-            [InlineKeyboardButton("Back 🔙", callback_data='settings')]
-        ]
+        current_source = "My Post"  
+        keyboard = [  
+            [InlineKeyboardButton(f"📄 My Post {'✅' if current_source == 'My Post' else ''}", callback_data='mypost')],  
+            [InlineKeyboardButton(f"📥 Saved Messages {'✅' if current_source == 'Saved Messages' else ''}", callback_data='saved_messages')],  
+            [InlineKeyboardButton("🔙 Back", callback_data='settings')]  
+        ]  
 
-        await update.callback_query.edit_message_text(
-            f"*Current Source Settings:\n MY POST ✅*",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
-        )
-    elif query.data == 'saved_messages':
+        await update.callback_query.edit_message_text(  
+            "╔═══════════════╗\n"  
+            "  🔧 Current Source Settings\n"  
+            "╚═══════════════╝\n"  
+            "  📄 *My Post* ✅\n"  
+            "  📥 *Saved Messages* \n"  
+            "─────────────────\n"  
+            "Choose an option below:\n",  
+            reply_markup=InlineKeyboardMarkup(keyboard),  
+            parse_mode="Markdown"  
+        )  
 
-        user_data["message_source"] = "saved_messages"
-        data["users"][user_id] = user_data
-        save_user_data(data)
-        current_source = "Saved Messages"
-        keyboard = [
-            [InlineKeyboardButton(f"My Post 📝 {'🟢' if current_source == 'My Post' else ''}", callback_data='mypost')],
-            [InlineKeyboardButton(f"Saved Messages 📥 {'🟢' if current_source == 'Saved Messages' else ''}", callback_data='saved_messages')],
-            [InlineKeyboardButton("Back 🔙", callback_data='settings')]
-        ]
+    elif query.data == 'saved_messages':  
+        user_data["message_source"] = "saved_messages"  
+        data["users"][user_id] = user_data  
+        save_user_data(data)  
 
+        current_source = "Saved Messages"  
+        keyboard = [  
+            [InlineKeyboardButton(f"📄 My Post {'✅' if current_source == 'My Post' else ''}", callback_data='mypost')],  
+            [InlineKeyboardButton(f"📥 Saved Messages {'✅' if current_source == 'Saved Messages' else ''}", callback_data='saved_messages')],  
+            [InlineKeyboardButton("🔙 Back", callback_data='settings')]  
+        ]  
 
-        await update.callback_query.edit_message_text(
-            f"*Current Source Settings:\n SAVED MESSAGES ✅*",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode = "Markdown"
+        await update.callback_query.edit_message_text(  
+            "╔═══════════════╗\n"  
+            " 🔧 Current Source Settings\n"  
+            "╚═══════════════╝\n"  
+            "  📄 *My Post* \n"  
+            "  📥 *Saved Messages* ✅\n"  
+            "─────────────────\n"  
+            "Choose an option below:\n",  
+            reply_markup=InlineKeyboardMarkup(keyboard),  
+            parse_mode="Markdown"  
         )
 
 def back_button():
@@ -1545,8 +1792,10 @@ def main():
     application.add_handler(CommandHandler("delpost", delpost))
     application.add_handler(CommandHandler('list', list_users))
     application.add_handler(CommandHandler("settings", settings))
+    application.add_handler(CallbackQueryHandler(otp_callback, pattern="^otp_"))
     application.add_handler(CallbackQueryHandler(autoreply_callback))
     application.add_handler(CallbackQueryHandler(all_callback))
+    
 
     application.run_polling()  
 
