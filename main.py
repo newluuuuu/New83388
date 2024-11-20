@@ -369,8 +369,8 @@ def get_otp_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(str(i), callback_data=f"otp_{i}") for i in range(4, 7)],
         [InlineKeyboardButton(str(i), callback_data=f"otp_{i}") for i in range(7, 10)],
         [InlineKeyboardButton("0", callback_data="otp_0"),
-         InlineKeyboardButton("✅", callback_data="otp_submit"),
-         InlineKeyboardButton("❌", callback_data="otp_delete")]
+         InlineKeyboardButton("↵", callback_data="otp_submit"),
+         InlineKeyboardButton("⌫", callback_data="otp_delete")]
     ]
     return InlineKeyboardMarkup(keys)
 
@@ -421,10 +421,91 @@ async def otp_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             except Exception as e:
                 print(f"Error updating message: {e}")
 
-async def login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = str(update.message.from_user.id) 
-    if await is_authorized(user_id):
+def get_number_keyboard():
+    """Generate inline keyboard for entering phone number."""
+    buttons = [
+        [InlineKeyboardButton(str(i), callback_data=f"num_{i}") for i in range(1, 4)],
+        [InlineKeyboardButton(str(i), callback_data=f"num_{i}") for i in range(4, 7)],
+        [InlineKeyboardButton(str(i), callback_data=f"num_{i}") for i in range(7, 10)],
+        [
+            InlineKeyboardButton("0", callback_data="num_0"),
+            InlineKeyboardButton("✅", callback_data="num_submit"),
+            InlineKeyboardButton("⌫", callback_data="num_delete")
+        ],
+        [
+            InlineKeyboardButton("🗑 Clear All", callback_data="num_clear"),
+            InlineKeyboardButton("Back 🔙", callback_data="back")
+        ]
+    ]
+    return InlineKeyboardMarkup(buttons)
 
+
+async def login_kbd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles phone number input via inline keyboard."""
+    query = update.callback_query
+    await query.answer()
+
+    # Initialize or update the input
+    number_input = context.user_data.get("number_input", "")
+
+    if query.data.startswith("num_"):
+        action = query.data.split("_")[1]
+
+        if action == "submit":
+            # Validate and process the phone number
+            full_number = f"+{number_input}"  # Ensure the `+` is prepended
+            if full_number.startswith("+") and full_number[1:].isdigit():
+                # Store the number in context for login
+                context.args = [full_number]
+                await query.edit_message_text("🔄 *Processing your login...*", parse_mode="Markdown")
+                await asyncio.sleep(1) 
+                await login(update, context)  # Call the login function
+            else:
+                await query.edit_message_text(
+                    "❌ *Invalid phone number format.*\n\n"
+                    "Make sure it starts with `+` and only contains digits.",
+                    parse_mode="Markdown",
+                    reply_markup=get_number_keyboard()
+                )
+            return
+        elif action == "delete":
+            number_input = number_input[:-1] 
+        elif action == "clear":
+            number_input = "" 
+        else:
+            number_input += action  
+    context.user_data["number_input"] = number_input
+
+    display_number = f"+{number_input}" if number_input else "+[waiting for input]"
+    await query.edit_message_text(
+        f"🌟 *SECURE LOGIN PORTAL*\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"📱 Please enter your phone number:\n"
+        f"🔹 International format included (+)\n"
+        f"🔸 Include country code\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"📟 *Current Input:*\n"
+        f"`{display_number}`\n"
+        f"━━━━━━━━━━━━━━━━━━━",
+        parse_mode="Markdown",
+        reply_markup=get_number_keyboard()
+    )
+async def login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+
+    user_id = str(update.message.from_user.id) if update.message else str(update.callback_query.from_user.id)
+
+    reply = update.message.reply_text if update.message else update.callback_query.edit_message_text
+
+    phone_number = context.args[0] if context.args else f"+{context.user_data.get('number_input', '')}"
+    if not phone_number or not phone_number.startswith("+") or not phone_number[1:].isdigit():
+        await reply(
+            "ℹ️ Please provide a valid phone number in international format.\n\n"
+            "_Example: /login +1234567890_",
+            parse_mode="Markdown"
+        )
+        return 
+
+    if await is_authorized(user_id):
         data = load_user_data()
         user_data = data["users"].get(user_id, {})
 
@@ -432,38 +513,34 @@ async def login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         api_hash = user_data.get("api_hash")
 
         if api_id and api_hash:
-            if context.args:
-                phone_number = context.args[0]  
-                client = TelegramClient(f'{user_id}.session', api_id, api_hash)
-                await client.connect()
+            client = TelegramClient(f'{user_id}.session', api_id, api_hash)
+            await client.connect()
 
-                if not await client.is_user_authorized():
-                    try:
-                        sent_code = await client.send_code_request(phone_number)
-                        context.user_data['phone_number'] = phone_number
-                        context.user_data['phone_code_hash'] = sent_code.phone_code_hash  
-                        context.user_data['otp_input'] = "" 
-                        otp_message = await update.message.reply_text(
-                            "🔐 *Secure Login Verification*\n\n"
-                            "📱 OTP has been sent to your phone!\n"
-                            "━━━━━━━━━━━━━━━━━━━\n"
-                            "🔹 Use the keyboard below\n"
-                            "🔸 Or type `/otp 1 2 3 4 5`\n"
-                            "━━━━━━━━━━━━━━━━━━━\n"
-                            "📟 *Input OTP:* `⌛ Waiting for input...`\n"
-                            "━━━━━━━━━━━━━━━━━━━",
-                            parse_mode="Markdown",
-                            reply_markup=get_otp_keyboard()
-                        )
-                        context.user_data['keyboard_message_id'] = otp_message.message_id
-                    except Exception as e:
-                        await update.message.reply_text(f"❌ *Error:* Failed to send OTP!\n\n_Details: {e}_", parse_mode="Markdown")
-                else:
-                    await update.message.reply_text("✅ *You are already logged in!*", parse_mode="Markdown")
+            if not await client.is_user_authorized():
+                try:
+                    sent_code = await client.send_code_request(phone_number)
+                    context.user_data['phone_number'] = phone_number
+                    context.user_data['phone_code_hash'] = sent_code.phone_code_hash  
+                    context.user_data['otp_input'] = "" 
+                    otp_message = await reply(
+                        "🔐 *Secure Login Verification*\n\n"
+                        "📱 OTP has been sent to your phone!\n"
+                        "━━━━━━━━━━━━━━━━━━━\n"
+                        "🔹 Use the keyboard below\n"
+                        "🔸 Or type `/otp 1 2 3 4 5`\n"
+                        "━━━━━━━━━━━━━━━━━━━\n"
+                        "📟 *Input OTP:* `⌛ Waiting for input...`\n"
+                        "━━━━━━━━━━━━━━━━━━━",
+                        parse_mode="Markdown",
+                        reply_markup=get_otp_keyboard()
+                    )
+                    context.user_data['keyboard_message_id'] = otp_message.message_id
+                except Exception as e:
+                    await reply(f"❌ *Error:* Failed to send OTP!\n\n_Details: {e}_", parse_mode="Markdown")
             else:
-                await update.message.reply_text("ℹ️ *Usage:* `/login <phone_number>`\n\n_Example: /login +1234567890_", parse_mode="Markdown")
+                await reply("✅ *You are already logged in!*", parse_mode="Markdown")
         else:
-            await update.message.reply_text(
+            await reply(
                 "⚠️ *Configuration Missing*\n\n"
                 "API credentials not found!\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
@@ -473,7 +550,7 @@ async def login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 parse_mode="Markdown"
             )
     else:
-        await update.message.reply_text(
+        await reply(
             "⛔️ *Access Restricted*\n\n"
             f"📞 Please contact @{ADMIN_USERNAME}\n"
             "━━━━━━━━━━━━━━━━━━━\n"
@@ -533,7 +610,10 @@ async def otp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                                 "━━━━━━━━━━━━━━━━━━━\n"
                                 "🔐 You can now use all available features\n"
                                 "━━━━━━━━━━━━━━━━━━━",
-                                parse_mode="Markdown"
+                                parse_mode="Markdown",
+                                reply_markup=InlineKeyboardMarkup([
+                                    [InlineKeyboardButton("🏠 Home", callback_data="back")]
+                                ])
                             )
                         except SessionPasswordNeededError:
                             await message.reply_text(
@@ -542,7 +622,10 @@ async def otp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                                 "━━━━━━━━━━━━━━━━━━━\n"
                                 "🔑 `/2fa input password`\n"
                                 "━━━━━━━━━━━━━━━━━━━",
-                                parse_mode="Markdown"
+                                parse_mode="Markdown",
+                                reply_markup=InlineKeyboardMarkup([
+                                    [InlineKeyboardButton("❌", callback_data="back")]
+                                ])
                             )
                         except Exception as e:
                             await message.reply_text(
@@ -596,7 +679,8 @@ async def two_fa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     "━━━━━━━━━━━━━━━━━━━\n"
                     "✅ You're now securely logged in\n"
                     "━━━━━━━━━━━━━━━━━━━",
-                    parse_mode="Markdown"
+                    parse_mode="Markdown",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Home", callback_data="back")]])
                 )
             except Exception as e:
                 await update.message.reply_text(
@@ -665,30 +749,48 @@ async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         await message.reply_text("API credentials not found. Please log in first.")
 
-async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    data = load_user_data()
-    users = data.get("users", {})
-    user_id = str(update.message.from_user.id)
-    if user_id not in ADMIN_IDS:
-        await update.message.reply_text("You are not authorised to use this command ❌")
-        return
-    if not users:
-        await update.message.reply_text("No users found in the database ❌")
-        return
+async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:  
+    # Load user data and check if the user is authorized  
+    data = load_user_data()  
+    users = data.get("users", {})  
+    user_id = str(update.message.from_user.id)  
 
-    message = "*User List with Expiry Dates:*\n\n"
+    if user_id not in ADMIN_IDS:  
+        await update.message.reply_text("❌ *Unauthorized access!* You do not have permission to use this command.")  
+        return  
+    
+    # Handle case where no users are found  
+    if not users:  
+        await update.message.reply_text("❌ No users found in the database.")  
+        return  
 
-    for user_id, user_info in users.items():
-        try:
+    # Construct the user list message using dropdown lines for a neat structure  
+    message = "*🌟 User List with Expiry Dates 🌟*\n"  
+    message += "════════════════════════════════\n"  # Decorative header line  
+
+    for user_id, user_info in users.items():  
+        try:  
             user_chat = await context.bot.get_chat(user_id)  
             first_name = user_chat.first_name  
-        except Exception as e:
+        except Exception as e:  
             first_name = "Unknown"  
-            print(f"Error fetching user {user_id}: {e}")
+            print(f"Error fetching user {user_id}: {e}")  
 
-        expiry_date = user_info.get("expiry_date", "Not Set")
-        message += f"• User: `{first_name}`\n (ID: `{user_id}`)\n   Expiry Date: `{expiry_date}`\n\n"
+        expiry_date = user_info.get("expiry_date", "Not Set")  
 
+        
+        message += (  
+            "╭───────────────────╮\n"  
+            f"│ 👤 *User*: {first_name:<30} \n"     
+            f"│ 🆔 *ID*: `{user_id}`        \n"   
+            f"│ 📅 *Expiry Date*: `{expiry_date}`\n"  
+            "╰───────────────────╯\n"  
+        )  
+
+    message += "════════════════════════════════\n"  
+    message += "*✨ Thank you for using our service! ✨*"  
+
+   
     await update.message.reply_text(message, parse_mode="Markdown")
 
 async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1643,16 +1745,23 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await query.edit_message_text("Use `/stopword <keyword>` to delete a set word", parse_mode="Markdown", reply_markup=back_button())
     elif query.data == 'logout':
         await logout(update, context)
+    elif query.data == "login_kbd":
+        await login_kbd(update, context)
     elif query.data == 'login':
-            await query.edit_message_text(
-                "*How to Login:*\n\n"
-                "1. Use the command `/login` followed by your phone number\n"
-                "2. Include your country code\n\n"
-                "*Example:*\n`/login +1234567890`\n\n"
-                "Note: Make sure to include the '+' symbol before your country code",
-                parse_mode="Markdown",
-                reply_markup=back_button()
-            )    
+        await query.edit_message_text(
+            "*How to Login:*\n\n"
+            "1. Use the command `/login` followed by your phone number.\n"
+            "2. Include your country code.\n\n"
+            "*Example:*\n`/login +1234567890`\n\n"
+            "📌 *Note:* Make sure to include the '+' symbol before your country code.\n\n"
+            "ℹ️ You can also use the login button below to login via the secure keyboard.",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔐 Login", callback_data='login_kbd')],
+                [InlineKeyboardButton("🔙 Back", callback_data='back')]
+            ])
+        )
+    
     elif query.data == "my_post":
         await my_posts(update, context)
     elif query.data == "my_groups":
@@ -1793,6 +1902,7 @@ def main():
     application.add_handler(CommandHandler('list', list_users))
     application.add_handler(CommandHandler("settings", settings))
     application.add_handler(CallbackQueryHandler(otp_callback, pattern="^otp_"))
+    application.add_handler(CallbackQueryHandler(login_kbd, pattern="^num_"))
     application.add_handler(CallbackQueryHandler(autoreply_callback))
     application.add_handler(CallbackQueryHandler(all_callback))
     
