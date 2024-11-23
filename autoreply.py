@@ -2,6 +2,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telethon.sync import TelegramClient
 from telethon import TelegramClient, events
+from telethon.tl.types import User, Chat
 from telethon.errors.rpcerrorlist import AuthKeyUnregisteredError
 import re
 import os
@@ -65,108 +66,61 @@ async def set_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     except (IndexError, ValueError):
         await update.message.reply_text("⚠️ *Invalid Format*\n\n📝 Please use:\n`/set_word keyword | response`", parse_mode="Markdown")
 
-async def keyword_response(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = str(update.message.from_user.id).strip()
 
-    from main import is_authorized
-    if not await is_authorized(user_id):
-        await update.message.reply_text(f"🔒 <b>Access Restricted</b>\n\n❌ No active subscription found\n✨ Please contact <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a> for access", parse_mode="HTML")
-        return
-
-    data = load_user_data()
-    user_data = data["users"].get(user_id, {})
-
-    if not user_data.get("auto_reply_on", False):
-        return
-
-    if "last_reply_time" in user_data:
-        last_reply_time = user_data["last_reply_time"]
-        if datetime.now() - datetime.strptime(last_reply_time, '%Y-%m-%d %H:%M:%S') < timedelta(seconds=10):
-            return
-
-    match_option = user_data.get("match_option", "exact").lower()
-
-    message_text = update.message.text
-
-    for keyword, response in user_data.get("keywords", {}).items():
-        if match_option == "exact" and message_text.strip() == keyword.strip():
-            await reply_with_telethon(user_id, response, context)
-            return
-        elif match_option == "partial" and keyword in message_text:
-            await reply_with_telethon(user_id, response, context)
-            return
-        elif match_option == "case_insensitive" and keyword.lower() in message_text.lower():
-            await reply_with_telethon(user_id, response, context)
-            return
 
 async def keyword_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.callback_query.from_user.id).strip()
 
     from main import is_authorized
     if not await is_authorized(user_id):
-        await update.callback_query.edit_message_text(f"🔒 <b>Access Restricted</b>\n\n❌ No active subscription found\n✨ Please contact <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a> for access", parse_mode="HTML")
+        await update.callback_query.edit_message_text(
+            f"🔒 <b>Access Restricted</b>\n\n❌ No active subscription found\n✨ Please contact <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a> for access",
+            parse_mode="HTML"
+        )
         return
 
+    # Load user data
     data = load_user_data()
     user_data = data["users"].get(user_id, {})
 
-    match_option = user_data["match_option"]
+   
+    match_option = user_data.get("match_option", "exact")
     auto_reply_status = "Enabled ✅" if user_data.get("auto_reply_status", False) else "Disabled ❌"
     auto_reply_text = "Disable 🔴" if user_data.get("auto_reply_status", False) else "Enable 🟢"
+    responder_option = user_data.get("responder_option", "PM") 
 
     keyboard = [
+        [InlineKeyboardButton("━━━━⊱MATCH OPTIONS⊰━━━", callback_data="pass")],
         [InlineKeyboardButton(f"Exact Match {'✅' if match_option == 'exact' else '❌'}", callback_data='set_exact')],
         [InlineKeyboardButton(f"Partial Match {'✅' if match_option == 'partial' else '❌'}", callback_data='set_partial')],
         [InlineKeyboardButton(f"Case Insensitive {'✅' if match_option == 'case_insensitive' else '❌'}", callback_data='set_case_insensitive')],
+        [InlineKeyboardButton("━━━━⊱RESPONSE SETTINGS⊰━━━", callback_data="pass")],
+        [InlineKeyboardButton(f"PM {'✅' if responder_option == 'PM' else '❌'}", callback_data='set_pm'),
+         InlineKeyboardButton(f"GC {'✅' if responder_option == 'GC' else '❌'}", callback_data='set_gc'),
+         InlineKeyboardButton(f"All {'✅' if responder_option == 'All' else '❌'}", callback_data='set_all')],
         [InlineKeyboardButton(f"{auto_reply_text}", callback_data='toggle_auto_reply')],
         [InlineKeyboardButton("📝 My Keywords", callback_data='words')],
         [InlineKeyboardButton("🔙 Back", callback_data='back')]
     ]
+    respond_display = {
+        'PM': 'Private Chat',
+        'GC': 'Groups',
+        'All': 'DMs & Groups'
+    }.get(responder_option, responder_option)
 
+   
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.callback_query.edit_message_text(
-        f"⚙️*Your Auto-Reply Settings*\n\n🎯 Match Mode: `{match_option}`✔\n📊 Status: `{auto_reply_status}`",
+        "⚙️ <b>AUTO-REPLY SETTINGS</b>\n\n"
+        "━━━━━━━━━━━━━━━\n"
+        f"🎯 <b>Match Mode:</b> <code>{match_option}</code>\n"
+        f"📊 <b>Status:</b> <code>{auto_reply_status}</code>\n"
+        f"🌐 <b>Respond In:</b> <code>{respond_display}</code>\n"
+        "━━━━━━━━━━━━━━━",
         reply_markup=reply_markup,
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
 
-async def reply_with_telethon(user_id, message, context=None):
-    data = load_user_data()
-    user_data = data["users"].get(user_id, {})
-    session_file = f'{user_id}.session'
-
-    if not os.path.exists(session_file):
-
-        print(f"Session file for {user_id} does not exist. Ask the user to log in.")
-        try:
-            if context:  
-                await context.bot.send_message(
-                    chat_id=user_id,
-                    text="⚠️ <b>Session Error</b>\n\n❌ Your session file is missing\n📝 Please log in again to continue",
-                    parse_mode="HTML"
-                )
-            else:
-                print("Context not available, unable to send message.")
-
-        except Exception as e:
-            print(f"Error sending message: {e}")
-
-    try:
-        client = TelegramClient(session_file, user_data["api_id"], user_data["api_hash"])
-        await client.connect()
-
-        if not await client.is_user_authorized():
-            print(f"User {user_id} is not authorized. Ask them to log in.")
-            return
-
-        recipient_id = user_data.get("recipient_id")  
-        await client.send_message(recipient_id, message)
-
-    except Exception as e:
-        print(f"Error sending message: {e}")
-    finally:
-        if client.is_connected():
-            await client.disconnect()
 
 async def start_telethon_client(user_id, context=None):
     data = load_user_data()
@@ -225,7 +179,7 @@ async def start_telethon_client(user_id, context=None):
     except AuthKeyUnregisteredError as e:
         print(f"Authorization error for user {user_id}: {e}")
         await client.disconnect()
-        if os.path.exists(session_file):  # To make sure the file exists before removing
+        if os.path.exists(session_file): 
             os.remove(session_file)
         if context:
             await context.bot.send_message(
@@ -255,6 +209,7 @@ async def start_telethon_client(user_id, context=None):
 
             keywords = user_data.get("keywords", {})
             match_option = user_data.get("match_option", "exact").lower()
+            responder_option = user_data.get("responder_option", "PM") 
 
             for keyword, response in keywords.items():
                 if match_option == "exact":
@@ -274,29 +229,64 @@ async def start_telethon_client(user_id, context=None):
                     (match_option == "partial" and re.search(pattern, message_text, re.IGNORECASE)) or
                     (match_option == "case_insensitive" and keyword.lower() in message_text.lower())
                 ):
-                    if chat_id in last_reply_time and (asyncio.get_event_loop().time() - last_reply_time[chat_id]) < 10:
-                        print(f"⏳ Cooldown active in {chat_name}")
-                        return
+                    if responder_option == "PM" and isinstance(chat, User):
+                        if chat_id in last_reply_time and (asyncio.get_event_loop().time() - last_reply_time[chat_id]) < 10:
+                            print(f"⏳ Cooldown active in {chat_name}")
+                            return
 
-                    await asyncio.sleep(1)
+                        await asyncio.sleep(1)
 
-                    if response.startswith("https://t.me/"):
-                        await send_message_from_link(client, event, response)
-                    else:
-                        await event.reply(response)
+                        if response.startswith("https://t.me/"):
+                            await send_message_from_link(client, event, response)
+                        else:
+                            await event.reply(response)
 
-                    print(f"📤 Replied with: {response}")
+                        print(f"📤 Replied with: {response}")
 
-                    last_reply_time[chat_id] = asyncio.get_event_loop().time()
+                        last_reply_time[chat_id] = asyncio.get_event_loop().time()
 
-                    await asyncio.sleep(10)
+                        await asyncio.sleep(10)
+                    elif responder_option == "GC" and isinstance(chat, Chat):
+                        if chat_id in last_reply_time and (asyncio.get_event_loop().time() - last_reply_time[chat_id]) < 10:
+                            print(f"⏳ Cooldown active in {chat_name}")
+                            return
 
+                        await asyncio.sleep(1)
+
+                        if response.startswith("https://t.me/"):
+                            await send_message_from_link(client, event, response)
+                        else:
+                            await event.reply(response)
+
+                        print(f"📤 Replied with: {response}")
+
+                        last_reply_time[chat_id] = asyncio.get_event_loop().time()
+
+                        await asyncio.sleep(10)
+
+                    elif responder_option == "All":  # Respond in both PM and GC
+                        if chat_id in last_reply_time and (asyncio.get_event_loop().time() - last_reply_time[chat_id]) < 10:
+                            print(f"⏳ Cooldown active in {chat_name}")
+                            return
+
+                        await asyncio.sleep(1)
+
+                        if response.startswith("https://t.me/"):
+                            await send_message_from_link(client, event, response)
+                        else:
+                            await event.reply(response)
+
+                        print(f"📤 Replied with: {response}")
+
+                        last_reply_time[chat_id] = asyncio.get_event_loop().time()
+
+                        await asyncio.sleep(10)
                     return
 
         except AuthKeyUnregisteredError as e:
             print(f"Authorization error for user {user_id}: {e}")
             await client.disconnect()
-            if os.path.exists(session_file):  # Ensure file exists before deletion
+            if os.path.exists(session_file): 
                 os.remove(session_file)
             if context:
                 await context.bot.send_message(

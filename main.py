@@ -2,10 +2,9 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 from telethon.sync import TelegramClient
-from telethon import TelegramClient, events
+from telethon import TelegramClient, events, functions
 from telethon.sessions import StringSession
 from dotenv import load_dotenv
-from telethon import functions, events
 from telethon.errors import SessionPasswordNeededError
 import os
 import json
@@ -18,7 +17,7 @@ import socketserver
 import threading
 import json
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from autoreply import set_word, reply_with_telethon, keyword_response, keyword_settings, start_telethon_client, stop_telethon_client
+from autoreply import set_word, keyword_settings, start_telethon_client, stop_telethon_client
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -271,7 +270,8 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "keywords": {},
                 "match_option": "exact", 
                 "auto_reply_status": False,
-                "forwarding_on": False
+                "forwarding_on": False,
+                "responder_option": "PM"
             }
 
             if user_id in data["users"]:
@@ -369,7 +369,7 @@ def get_otp_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(str(i), callback_data=f"otp_{i}") for i in range(4, 7)],
         [InlineKeyboardButton(str(i), callback_data=f"otp_{i}") for i in range(7, 10)],
         [InlineKeyboardButton("0", callback_data="otp_0"),
-         InlineKeyboardButton("↵", callback_data="otp_submit"),
+         InlineKeyboardButton("↵ Enter", callback_data="otp_submit"),
          InlineKeyboardButton("⌫", callback_data="otp_delete")]
     ]
     return InlineKeyboardMarkup(keys)
@@ -428,38 +428,37 @@ def get_number_keyboard():
         [InlineKeyboardButton(str(i), callback_data=f"num_{i}") for i in range(4, 7)],
         [InlineKeyboardButton(str(i), callback_data=f"num_{i}") for i in range(7, 10)],
         [
+            
+            InlineKeyboardButton("✅ Submit", callback_data="num_submit"),
             InlineKeyboardButton("0", callback_data="num_0"),
-            InlineKeyboardButton("✅", callback_data="num_submit"),
             InlineKeyboardButton("⌫", callback_data="num_delete")
         ],
         [
-            InlineKeyboardButton("🗑 Clear All", callback_data="num_clear"),
+            InlineKeyboardButton("Clear 🗑", callback_data="num_clear"),
             InlineKeyboardButton("Back 🔙", callback_data="back")
         ]
     ]
     return InlineKeyboardMarkup(buttons)
-
 
 async def login_kbd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles phone number input via inline keyboard."""
     query = update.callback_query
     await query.answer()
 
-    # Initialize or update the input
     number_input = context.user_data.get("number_input", "")
 
     if query.data.startswith("num_"):
         action = query.data.split("_")[1]
 
         if action == "submit":
-            # Validate and process the phone number
-            full_number = f"+{number_input}"  # Ensure the `+` is prepended
+
+            full_number = f"+{number_input}"  
             if full_number.startswith("+") and full_number[1:].isdigit():
-                # Store the number in context for login
+
                 context.args = [full_number]
                 await query.edit_message_text("🔄 *Processing your login...*", parse_mode="Markdown")
                 await asyncio.sleep(1) 
-                await login(update, context)  # Call the login function
+                await login(update, context)  
             else:
                 await query.edit_message_text(
                     "❌ *Invalid phone number format.*\n\n"
@@ -539,6 +538,7 @@ async def login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     await reply(f"❌ *Error:* Failed to send OTP!\n\n_Details: {e}_", parse_mode="Markdown")
             else:
                 await reply("✅ *You are already logged in!*", parse_mode="Markdown")
+                await client.disconnect()
         else:
             await reply(
                 "⚠️ *Configuration Missing*\n\n"
@@ -559,7 +559,7 @@ async def login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             parse_mode="Markdown"
         )
 async def otp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message:  # Regular message
+    if update.message:  
         user_id = str(update.message.from_user.id)
         otp_parts = context.args
         message = update.message
@@ -567,20 +567,20 @@ async def otp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await context.bot.delete_message(chat_id=message.chat_id, message_id=message.message_id)
         except Exception as e:
             print(f"Error deleting user message: {e}")
-    elif update.callback_query:  # Callback query
+    elif update.callback_query:  
         user_id = str(update.callback_query.from_user.id)
         otp_parts = context.user_data.get('otp_input', "")  
         message = update.callback_query.message
     else:
         return
-    
+
     if 'keyboard_message_id' in context.user_data:
         try:
             await context.bot.delete_message(
                 chat_id=message.chat_id,
                 message_id=context.user_data['keyboard_message_id']
             )
-            del context.user_data['keyboard_message_id']  # Remove it from context after deletion
+            del context.user_data['keyboard_message_id']  
         except Exception as e:
             print(f"Error deleting keyboard message: {e}")
 
@@ -750,7 +750,7 @@ async def logout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await message.reply_text("API credentials not found. Please log in first.")
 
 async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:  
-    # Load user data and check if the user is authorized  
+
     data = load_user_data()  
     users = data.get("users", {})  
     user_id = str(update.message.from_user.id)  
@@ -758,15 +758,13 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if user_id not in ADMIN_IDS:  
         await update.message.reply_text("❌ *Unauthorized access!* You do not have permission to use this command.")  
         return  
-    
-    # Handle case where no users are found  
+
     if not users:  
         await update.message.reply_text("❌ No users found in the database.")  
         return  
 
-    # Construct the user list message using dropdown lines for a neat structure  
     message = "*🌟 User List with Expiry Dates 🌟*\n"  
-    message += "════════════════════════════════\n"  # Decorative header line  
+    message += "════════════════════════════════\n"  
 
     for user_id, user_info in users.items():  
         try:  
@@ -778,7 +776,6 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
         expiry_date = user_info.get("expiry_date", "Not Set")  
 
-        
         message += (  
             "╭───────────────────╮\n"  
             f"│ 👤 *User*: {first_name:<30} \n"     
@@ -790,84 +787,82 @@ async def list_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     message += "════════════════════════════════\n"  
     message += "*✨ Thank you for using our service! ✨*"  
 
-   
     await update.message.reply_text(message, parse_mode="Markdown")
 
-async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:  
     user_id = str(update.message.from_user.id)  
 
-    if await is_authorized(user_id):
-        message_text = update.message.text
-        group_links = message_text.split("\n")[1:] 
+    if await is_authorized(user_id):  
+        message_text = update.message.text  
+        group_links = message_text.split("\n")[1:]  
 
-        if len(group_links) > 50:
-            await update.message.reply_text("You can add a maximum of 50 group links at a time.")
-            return
+        if len(group_links) > 50:  
+            await update.message.reply_text("You can add a maximum of 50 group links at a time.")  
+            return  
 
-        with open("config.json", "r") as f:
-            config_data = json.load(f)
+        with open("config.json", "r") as f:  
+            config_data = json.load(f)  
 
-        user_data = config_data["users"].get(user_id, {})
+        user_data = config_data["users"].get(user_id, {})  
         user_groups = user_data.get("groups", [])  
 
-        added_groups = []
-        already_in_list = []
+        added_groups = []  
+        already_in_list = []  
 
-        for group_link in group_links:
+        for group_link in group_links:  
             group_link = group_link.strip()  
-            if group_link.startswith("https://t.me/"):
-                if group_link and group_link not in user_groups:
-                    user_groups.append(group_link)
-                    added_groups.append(group_link)
-                elif group_link in user_groups:
-                    already_in_list.append(group_link)
-            else:
-
-                await update.message.reply_text(f"Link '{group_link}' is not a valid Telegram link.")
+            # Check if the group link is a valid Telegram link or a chat ID  
+            if group_link.startswith("https://t.me/") or (group_link.startswith('-') and group_link[1:].isdigit()):  
+                if group_link and group_link not in user_groups:  
+                    user_groups.append(group_link)  
+                    added_groups.append(group_link)  
+                elif group_link in user_groups:  
+                    already_in_list.append(group_link)  
+            else:  
+                await update.message.reply_text(f"Link '{group_link}' is not a valid Telegram link or chat ID.")  
 
         user_data["groups"] = user_groups  
         config_data["users"][user_id] = user_data  
 
-        with open("config.json", "w") as f:
-            json.dump(config_data, f, indent=4)
+        with open("config.json", "w") as f:  
+            json.dump(config_data, f, indent=4)  
 
-        if added_groups:
-            added_groups_response = "*🎉 Groups Added for Forwarding:*\n"
-            added_groups_response += "╭───────┬───────────────╮\n"
-            added_groups_response += "│ *No*  │ *Group Link*   \n"
-            added_groups_response += "├───────┼───────────────┤\n"
+        if added_groups:  
+            added_groups_response = "*🎉 Groups Added for Forwarding:*\n"  
+            added_groups_response += "╭───────┬───────────────╮\n"  
+            added_groups_response += "│ *No*  │ *Group Link*   \n"  
+            added_groups_response += "├───────┼───────────────┤\n"  
 
-            for index, group in enumerate(added_groups, start=1):
-                added_groups_response += f"│ `{index}` │ `{group}`\n"
+            for index, group in enumerate(added_groups, start=1):  
+                added_groups_response += f"│ `{index}` │ `{group}`\n"  
 
-            added_groups_response += "╰───────┴───────────────╯\n"
-            added_groups_response += "*✨ Thank you for participating! ✨*"
+            added_groups_response += "╰───────┴───────────────╯\n"  
+            added_groups_response += "*✨ Thank you for participating! ✨*"  
 
-            await update.message.reply_text(added_groups_response, parse_mode="Markdown")
+            await update.message.reply_text(added_groups_response, parse_mode="Markdown")  
 
-        if already_in_list:
-            already_in_list_response = "*⚠️ Groups Already in Your Forwarding List:*\n"
-            already_in_list_response += "╭───────┬───────────────────────╮\n"
-            already_in_list_response += "│ *No*  │ *Group Link*         │\n"
-            already_in_list_response += "├───────┼───────────────────────┤\n"
+        if already_in_list:  
+            already_in_list_response = "*⚠️ Groups Already in Your Forwarding List:*\n"  
+            already_in_list_response += "╭───────┬───────────────────────╮\n"  
+            already_in_list_response += "│ *No*  │ *Group Link*         │\n"  
+            already_in_list_response += "├───────┼───────────────────────┤\n"  
 
-            for index, group in enumerate(already_in_list, start=1):
-                already_in_list_response += f"│ `{index}` │ `{group}`\n"
+            for index, group in enumerate(already_in_list, start=1):  
+                already_in_list_response += f"│ `{index}` │ `{group}`\n"  
 
-            already_in_list_response += "╰───────┴───────────────────────╯\n"
-            already_in_list_response += "*💡 No changes were made to these groups.*"
+            already_in_list_response += "╰───────┴───────────────────────╯\n"  
+            already_in_list_response += "*💡 No changes were made to these groups.*"  
 
-            await update.message.reply_text(already_in_list_response, parse_mode="Markdown")
+            await update.message.reply_text(already_in_list_response, parse_mode="Markdown")  
 
-        if not added_groups and not already_in_list:
-            await update.message.reply_text("Invalid Format❗\nUsage:\n`/addgroup\n<link1>\n<link2>`", parse_mode="Markdown")
+        if not added_groups and not already_in_list:  
+            await update.message.reply_text("Invalid Format❗\nUsage:\n`/addgroup\n<link1>\n<link2>`", parse_mode="Markdown")  
 
-    else:
-        await update.message.reply_text(
-            f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", 
-            parse_mode="HTML"
-        )
-
+    else:  
+        await update.message.reply_text(  
+            f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>",   
+            parse_mode="HTML"  
+        )  
 
 async def del_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:  
     user_id = str(update.message.from_user.id)  
@@ -878,14 +873,12 @@ async def del_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             removed_groups = []  
             not_found_groups = []  
 
-            # Load user data from the JSON configuration  
             with open("config.json", "r") as f:  
                 config_data = json.load(f)  
 
             user_data = config_data["users"].get(user_id, {})  
             user_groups = user_data.get("groups", [])  
 
-            # Process group removal  
             for group_id in group_ids:  
                 if group_id in user_groups:  
                     user_groups.remove(group_id)  
@@ -893,29 +886,23 @@ async def del_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 else:  
                     not_found_groups.append(group_id)  
 
-            # Update user data  
             user_data["groups"] = user_groups  
             config_data["users"][user_id] = user_data  
 
-            # Save updated data back to JSON  
             with open("config.json", "w") as f:  
                 json.dump(config_data, f, indent=4)  
 
-            # Construct the response message  
             response = ""  
             if removed_groups or not_found_groups:  
                 response += "*📋 Group Removal Summary:*\n"  
                 response += "╭───────┬───────────────────╮\n"
                 response += "│ *Status* │ *Group ID*     │\n"
                 response += "├───────┼───────────────────┤\n"
-  
 
-                # Add removed groups  
                 if removed_groups:
                     for group_id in removed_groups:
                         response += f"│ *Removed* │ `{group_id}`  │\n" 
 
-                # Add not found groups  
                 if not_found_groups:
                     for group_id in not_found_groups:
                         response += f"│ *Not Found* │ `{group_id}`│\n"
@@ -985,7 +972,13 @@ async def offf(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: str,
         )
 
 async def off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = str(update.message.from_user.id)
+    if update.callback_query:
+        user_id = str(update.callback_query.from_user.id)
+        message = update.callback_query.message
+        await update.callback_query.answer()
+    else:
+        user_id = str(update.message.from_user.id)
+        message = update.message
 
     with open("config.json", "r") as f:
         config_data = json.load(f)
@@ -1005,17 +998,23 @@ async def off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 job_removed = True
                 break
 
-        if job_removed:
-            await update.message.reply_text("✅ *Message Forwarding Status*\n\n❌ *Forwarding has been disabled*\n└ _Your automated message forwarding service is now turned off_", parse_mode="Markdown")
+        response_text = "✅ *Message Forwarding Status*\n\n❌ *Forwarding has been disabled*\n└ _Your automated message forwarding service is now turned off_" if job_removed else "ℹ️ *Forwarding Status*\n\n❗ *No Active Service Found*\n└ _There are no running forwarding tasks for your account_"
+
+        if update.callback_query:
+            await message.edit_text(response_text, parse_mode="Markdown")
         else:
-            await update.message.reply_text("ℹ️ *Forwarding Status*\n\n❗ *No Active Service Found*\n└ _There are no running forwarding tasks for your account_", parse_mode="Markdown")
+            await message.reply_text(response_text, parse_mode="Markdown")
 
         if not scheduler.get_jobs():
             scheduler.shutdown()
             print("Scheduler stopped as there are no remaining jobs.")
 
     else:
-        await update.message.reply_text("*ℹ️ Message forwarding is already disabled or not set up for you ❗*", parse_mode="Markdown")
+        response_text = "*ℹ️ Message forwarding is already disabled or not set up for you ❗*"
+        if update.callback_query:
+            await message.edit_text(response_text, parse_mode="Markdown")
+        else:
+            await message.reply_text(response_text, parse_mode="Markdown")
 
 def extract_chat_and_message_id(post_message: str):
     """
@@ -1043,7 +1042,6 @@ def extract_group_and_topic_id(group_link: str):
 
         return group_username, topic_id
     return None, None
-
 
 async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: str) -> None:
     try:
@@ -1073,7 +1071,7 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
                 return
             print(f"User {user_id} is authorized")
             await client.disconnect()
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.8)
 
         if not forwarding_on:
             print("Forwarding is disabled for this user.")
@@ -1093,69 +1091,80 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         post_index = user_data.get("post_index", 0) 
         if post_index >= len(post_message):  
             post_index = 0 
-        async with TelegramClient(f'{user_id}.session', api_id, api_hash) as client:
+        async with TelegramClient(f'{user_id}.session', api_id, api_hash) as client:  
+            current_post = post_message[post_index]  
+            for group_link in user_groups:  
+                while True:  
+                    try:  
+                        if group_link.startswith("https://t.me/"):  
+                            to_peer, topic_id = extract_group_and_topic_id(group_link)  
+                        elif group_link.startswith('-') and group_link[1:].isdigit():  
+                            to_peer = int(group_link)
+                            topic_id = None   
+                        else:  
+                            print(f"Invalid group link: {group_link}")  
+                            break  
 
-            current_post = post_message[post_index]
-            for group_link in user_groups:
-                retry_count = 2
-                while retry_count > 0:
-                    try:
+                        if current_post.startswith("https://t.me/"):  
+                            from_peer, message_id = extract_chat_and_message_id(current_post)  
 
-                        to_peer, topic_id = extract_group_and_topic_id(group_link)
-                        if not to_peer:
-                            print(f"Invalid group link: {group_link}")
-                            break
+                            if "t.me/+" in group_link:   
+                                target_group = await client(functions.messages.CheckChatInviteRequest(  
+                                    hash=group_link.split('+')[1]  
+                                ))  
+                                target_group = target_group.chat  
+                            else:  
+                                if to_peer:  
+                                    target_group = await client.get_entity(to_peer)  
+                                else:  
+                                    print(f"Invalid group link: {group_link}")  
+                                    break  
 
-                        if current_post.startswith("https://t.me/"):
+                            if from_peer and message_id:  
+                                if topic_id:  
+                                    await client(functions.messages.ForwardMessagesRequest(  
+                                        from_peer=from_peer,  
+                                        id=[message_id],  
+                                        to_peer=target_group,  
+                                        top_msg_id=int(topic_id)  
+                                    ))  
+                                else:  
+                                    await client(functions.messages.ForwardMessagesRequest(  
+                                        from_peer=from_peer,  
+                                        id=[message_id],  
+                                        to_peer=target_group  
+                                    ))  
 
-                            from_peer, message_id = extract_chat_and_message_id(current_post)
-                            group_parts = group_link.replace("https://t.me/", "").split("/")
-                            to_peer = group_parts[0]  
-                            topic_ids = group_parts[1] if len(group_parts) > 1 and group_parts[1].isdigit() else None
+                                print(f"Message forwarded to group {group_link}.")  
+                            else:  
+                                print(f"Invalid Telegram message link: {current_post}")  
 
-                            if from_peer and message_id:
+                        else:  
+                            if "t.me/+" in group_link:  
+                                target_group = await client(functions.messages.CheckChatInviteRequest(  
+                                    hash=group_link.split('+')[1]  
+                                ))  
+                                target_group = target_group.chat  
+                            else:  
+                                target_group = await client.get_entity(to_peer)  
 
-                                target_group = await client.get_entity(to_peer)
+                            if topic_id is not None:  
+                                await client.send_message(target_group, current_post, reply_to=int(topic_id))  
+                            else:  
+                                await client.send_message(target_group, current_post)  
 
-                                if topic_ids:
-
-                                    await client(functions.messages.ForwardMessagesRequest(
-                                        from_peer=from_peer,
-                                        id=[message_id],
-                                        to_peer=target_group,
-                                        top_msg_id=int(topic_ids)  
-                                    ))
-                                else:
-
-                                    await client(functions.messages.ForwardMessagesRequest(
-                                        from_peer=from_peer,
-                                        id=[message_id],
-                                        to_peer=target_group
-                                    ))
-
-                                print(f"Message forwarded to group {group_link}.")
-                            else:
-                                print(f"Invalid Telegram message link: {post_message}")
-
-                        else:
-
-                            target_group = await client.get_entity(to_peer)
-
-                            if topic_id is not None:
-
-                                await client.send_message(target_group, current_post, reply_to=int(topic_id))
-                            else:
-
-                                await client.send_message(target_group, current_post)
-
-                            print(f"Message sent to group {group_link}.")
+                            print(f"Message sent to group {group_link}.")  
 
                         break  
                     except Exception as e:
-                        print(f"Error forwarding message to group {group_link}: {e}")
-                        retry_count -= 1
-                        await asyncio.sleep(1)  
-
+                        user_id = update.message.from_user.id
+                        message = update.message
+                        error = f"⚠️ Error forwarding message to {group_link}\n\n🔴 Error: {e}"
+                        error_message = f"⚠️ Error forwarding message:\n\n📎 Group: `{group_link}`\n\n🔴 Error: `{e}`"
+                        print(error)
+                        await (message.reply_text)(error_message, parse_mode="Markdown")
+                        await asyncio.sleep(0.5)  
+                        break
             print(f"All messages sent. Disconnecting client.")
 
         post_index = (post_index + 1) % len(post_message)
@@ -1167,6 +1176,7 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
 
     except Exception as e:
         print(f"An error occurred in forward_messages: {e}")
+        await offf(update, context, user_id, reason=f"An error occurred in forward_messages: {e}")
 
 async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: str) -> None:
     try:
@@ -1194,7 +1204,7 @@ async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user
                 return
             print(f"User {user_id} is authorized")
             await client.disconnect()
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.8)
 
         if not forwarding_on:
             print(f"Forwarding is disabled for {user_id}")
@@ -1221,23 +1231,30 @@ async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user
             current_post = messages[0]  
 
             for group_link in user_groups:
-                retry_count = 2
+                retry_count = 1
                 while retry_count > 0:
                     try:
-                        to_peer, topic_id = extract_group_and_topic_id(group_link)
-                        if not to_peer:
-                            print(f"Invalid group link: {group_link}")
-                            break
-
-                        if current_post.text:  
+                        if group_link.startswith('-') and group_link[1:].isdigit():  
+                            to_peer = int(group_link)  
                             target_group = await client.get_entity(to_peer)
+                            topic_id = None  
+                        else:
+                            to_peer, topic_id = extract_group_and_topic_id(group_link)
+                            if "t.me/+" in group_link:  
+                                target_group = await client(functions.messages.CheckChatInviteRequest(
+                                    hash=group_link.split('+')[1]
+                                ))
+                                target_group = target_group.chat
+                            else:
+                                target_group = await client.get_entity(to_peer)
 
+                        if current_post.text:
                             if topic_id is not None:
                                 await client(functions.messages.ForwardMessagesRequest(
                                     from_peer=saved_messages,
                                     id=[current_post.id],
                                     to_peer=target_group,
-                                    top_msg_id=int(topic_id) if topic_id else None
+                                    top_msg_id=int(topic_id)
                                 ))
                             else:
                                 await client(functions.messages.ForwardMessagesRequest(
@@ -1245,29 +1262,40 @@ async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user
                                     id=[current_post.id],
                                     to_peer=target_group
                                 ))
-
                             print(f"Message forwarded to group {group_link}.")
                         else:
                             print(f"Message does not contain text, skipping: {current_post.id}")
 
                         break  
                     except Exception as e:
-                        print(f"Error forwarding message to group {group_link}: {e}")
-                        retry_count -= 1
-                        await asyncio.sleep(1)  
-
+                        user_id = update.message.from_user.id
+                        message = update.message
+                        error = f"⚠️ Error forwarding message to {group_link}\n\n🔴 Error: {e}"
+                        error_message = f"⚠️ Error forwarding message:\n\n📎 Group: `{group_link}`\n\n🔴 Error: `{e}`"
+                        print(error)
+                        await (message.reply_text)(error_message, parse_mode="Markdown")
+                        await asyncio.sleep(0.5)  
+                        break
             print(f"All messages sent. Disconnecting client.")
 
         await asyncio.sleep(interval)
 
     except Exception as e:
         print(f"An error occurred in forward_messages: {e}")
+        await offf(update, context, user_id, reason=f"An error occurred in forward_messages: {e}")
 
 async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user_id = str(update.message.from_user.id)
-    
+    if update.callback_query:
+        message = update.callback_query.message
+        user_id = str(update.callback_query.from_user.id)
+        is_callback = True
+    else:
+        message = update.message
+        user_id = str(update.message.from_user.id)
+        is_callback = False
+
     if not await is_authorized(user_id):
-        await update.message.reply_text(
+        await (message.edit_text if is_callback else message.reply_text)(
             "⚠️ *Your subscription has expired or you are not authorized to enable forwarding.*\n"
             f"*Please contact the* [Admin](tg://resolve?domain={ADMIN_USERNAME}) *for assistance ❕*",
             parse_mode="Markdown"
@@ -1282,24 +1310,24 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     missing_keys = [key for key in required_keys if not user_data.get(key)]
 
     if user_data.get("auto_reply_status", False):
-        await update.message.reply_text("*Forwarding cannot be toggled when Auto-reply is active ❌*", parse_mode="Markdown")
+        await (message.edit_text if is_callback else message.reply_text)("*Forwarding cannot be toggled when Auto-reply is active ❌*", parse_mode="Markdown")
         return
     if message_source == "saved_messages":
         pass  
     else:
         if "post_messages" not in user_data or not user_data["post_messages"]:
-            await update.message.reply_text("*⚠️ Please set at least one* `post_messages` *to proceed or switch your Message Source*", parse_mode="Markdown")
+            await (message.edit_text if is_callback else message.reply_text)("*⚠️ Please set at least one* `post_messages` *to proceed or switch your Message Source*", parse_mode="Markdown")
             return
 
     if missing_keys:
-        await update.message.reply_text(
-            f"*Please ensure the following keys are set before enabling forwarding:* ```{', '.join(missing_keys)}```",
+        await (message.edit_text if is_callback else message.reply_text)(
+            f"*Please ensure the following keys are set before enabling forwarding:* {', '.join(missing_keys)}",
             parse_mode="Markdown"
         )
         return
 
     if int(user_data.get("interval", 0)) < 15:
-        await update.message.reply_text(
+        await (message.edit_text if is_callback else message.reply_text)(
             "The interval must be at least 15 seconds. Please update it using the `/time` command.",
             parse_mode="Markdown"
         )
@@ -1307,7 +1335,7 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     session_file = f'{user_id}.session'
     if not os.path.exists(session_file):
-        await update.message.reply_text("*Sorry, you are logged out. Please log in again with* `/login +1234567890`", parse_mode="Markdown")
+        await (message.edit_text if is_callback else message.reply_text)("*Sorry, you are logged out. Please log in again with* `/login +1234567890`", parse_mode="Markdown")
         return
 
     try:
@@ -1317,7 +1345,7 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await client.is_user_authorized():
             await client.disconnect()
             os.remove(session_file)
-            await update.message.reply_text("*Your session was terminated. Please log in again ❌*", parse_mode="Markdown")
+            await (message.edit_text if is_callback else message.reply_text)("*Your session was terminated. Please log in again ❌*", parse_mode="Markdown")
             return
 
         data["users"][user_id]["forwarding_on"] = True
@@ -1329,15 +1357,15 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         job_exists = any(job.args[0] == user_id for job in scheduler.get_jobs())
         if not job_exists:
             if message_source == "saved_messages":
-                scheduler.add_job(forward_saved, 'interval', seconds=int(user_data["interval"]), args=[update, context, user_id], max_instances=5)
+                scheduler.add_job(forward_saved, 'interval', seconds=int(user_data["interval"]), args=[update, context, user_id], max_instances=10)
             else:
-                scheduler.add_job(forward_messages, 'interval', seconds=int(user_data["interval"]), args=[update, context, user_id], max_instances=5)
+                scheduler.add_job(forward_messages, 'interval', seconds=int(user_data["interval"]), args=[update, context, user_id], max_instances=10)
 
-        await update.message.reply_text("*Message forwarding is now enabled ✅*", parse_mode="Markdown")
+        await (message.edit_text if is_callback else message.reply_text)("*Message forwarding is now enabled ✅*", parse_mode="Markdown")
 
     except Exception as e:
         print(f"An error occurred while checking your session: {e}")
-        await update.message.reply_text(f"*An error occurred while checking your session.\n{e}❗*", parse_mode="Markdown")
+        await (message.edit_text if is_callback else message.reply_text)(f"*An error occurred while checking your session.\n{e}❗*", parse_mode="Markdown")
     finally:
         if client.is_connected():
             await client.disconnect()
@@ -1346,7 +1374,7 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if message_source == "saved_messages":
         asyncio.create_task(forward_saved(update, context, user_id))  
     else:
-        asyncio.create_task(forward_messages(update, context, user_id)) 
+        asyncio.create_task(forward_messages(update, context, user_id))
 
 async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
@@ -1624,8 +1652,11 @@ async def stopword_command(update, context):
         await update.message.reply_text(f"🔍 <b>Hmm... I couldn't find '{keyword_to_remove}' in your keywords list</b> 🤔", parse_mode="HTML")
 async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    user_id = str(query.from_user.id).strip()
+    if not query:
+        print("No callback query received.")
+        return
 
+    user_id = str(query.from_user.id).strip()
     data = load_user_data()
     user_data = data["users"].get(user_id, {})
 
@@ -1635,75 +1666,80 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if query.data == "set_exact":
         user_data["match_option"] = "exact"
+    elif query.data == "set_pm":
+        user_data["responder_option"] = "PM"
+    elif query.data == "set_gc":
+        user_data["responder_option"] = "GC"
+    elif query.data == "set_all":
+        user_data["responder_option"] = "All"
     elif query.data == "set_partial":
         user_data["match_option"] = "partial"
     elif query.data == "set_case_insensitive":
         user_data["match_option"] = "case_insensitive"
     elif query.data == "toggle_auto_reply":
-        user_data = data["users"].get(user_id)
-
-        keywords = user_data.get("keywords", {})
-        if not keywords:
-            await query.answer(
-                "No keywords have been set for you ❌\nPlease add at least one keyword using /setword (Message | Response).",
-                show_alert=True
-            )
-            return
-
-        if user_data.get("forwarding_on", False):
-            await query.answer(
-                "Auto-reply cannot be toggled while forwarding is active ❌",
-                show_alert=True
-            )
-            return
 
         user_data["auto_reply_status"] = not user_data.get("auto_reply_status", False)
         save_user_data(data)
-
         try:
             if user_data["auto_reply_status"]:
-                await start_telethon_client(user_id, context)  
+                await start_telethon_client(user_id, context)
             else:
-                await stop_telethon_client(user_id)  
-
+                await stop_telethon_client(user_id)
             await query.answer(
                 f"Auto-reply is now {'enabled' if user_data['auto_reply_status'] else 'disabled'} ✅",
                 show_alert=True
             )
         except Exception as e:
-
             print(f"Error while toggling auto-reply: {e}")
             await query.answer(
                 f"Failed to toggle auto-reply: {str(e)} ❌",
                 show_alert=True
             )
-
     else:
         await all_callback(update, context)
         return
 
     save_user_data(data)
 
-    match_option = user_data["match_option"]
+    match_option = user_data.get("match_option", "exact")
+    responder_option = user_data.get("responder_option", "PM")
     auto_reply_status = "Enabled ✅" if user_data.get("auto_reply_status", False) else "Disabled ❌"
     auto_reply_text = "Disable 🔴" if user_data.get("auto_reply_status", False) else "Enable 🟢"
 
     keyboard = [
+        [InlineKeyboardButton("━━━━⊱MATCH OPTIONS⊰━━━", callback_data="pass")],
         [InlineKeyboardButton(f"Exact Match {'✅' if match_option == 'exact' else '❌'}", callback_data='set_exact')],
         [InlineKeyboardButton(f"Partial Match {'✅' if match_option == 'partial' else '❌'}", callback_data='set_partial')],
         [InlineKeyboardButton(f"Case Insensitive {'✅' if match_option == 'case_insensitive' else '❌'}", callback_data='set_case_insensitive')],
+        [InlineKeyboardButton("━━━━⊱RESPONSE SETTINGS⊰━━━", callback_data="pass")],
+        [InlineKeyboardButton(f"PM {'✅' if responder_option == 'PM' else '❌'}", callback_data='set_pm'),
+         InlineKeyboardButton(f"GC {'✅' if responder_option == 'GC' else '❌'}", callback_data='set_gc'),
+         InlineKeyboardButton(f"All {'✅' if responder_option == 'All' else '❌'}", callback_data='set_all')],
         [InlineKeyboardButton(f"{auto_reply_text}", callback_data='toggle_auto_reply')],
         [InlineKeyboardButton("📝 My Keywords", callback_data='words')],
         [InlineKeyboardButton("🔙 Back", callback_data='back')]
     ]
-
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await query.edit_message_text(
-        f"⚙️*Your Auto-Reply Settings*\n\n🎯 Match Mode: `{match_option}`✔\n📊 Status: `{auto_reply_status}`",
-        reply_markup=reply_markup,
-        parse_mode="Markdown"
-    )
+    respond_display = {
+        'PM': 'Private Chat',
+        'GC': 'Groups',
+        'All': 'DMs & Groups'
+    }.get(responder_option, responder_option)
+
+    try:
+        await query.edit_message_text(
+            "⚙️ <b>AUTO-REPLY SETTINGS</b>\n\n"
+            "━━━━━━━━━━━━━━━\n"
+            f"🎯 <b>Match Mode:</b> <code>{match_option}</code>\n"
+            f"📊 <b>Status:</b> <code>{auto_reply_status}</code>\n"
+            f"🌐 <b>Respond In:</b> <code>{respond_display}</code>\n"
+            "━━━━━━━━━━━━━━━",
+            reply_markup=reply_markup,
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        print(f"Failed to update message: {e}")
 
 async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -1723,7 +1759,35 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     elif query.data == 'set_time':
         await query.edit_message_text("Please use /time <interval> to set the message interval in seconds only.", reply_markup=back_button())
     elif query.data == 'on_off':
-        await query.edit_message_text("Please use /on or /off to toggle forwarding.", reply_markup=back_button())
+        data = load_user_data()
+        user_id = str(query.from_user.id).strip()
+        user_data = data["users"].get(user_id, {})
+        forwarding_status = user_data.get("forwarding_on", False)
+        
+        button_text = "Disable ❌" if forwarding_status else "Enable 🟢"
+        status_text = "ON" if forwarding_status else "OFF"
+        
+        await query.edit_message_text(
+            "⚙️ <b>FORWARDING STATUS</b>\n\n"
+            "━━━━━━━━━━━━━━━\n"
+            f"📊 <b>Status:</b> <code>{status_text}</code>\n"
+            "━━━━━━━━━━━━━━━",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton(button_text, callback_data='toggle_forwarding')],
+                [InlineKeyboardButton("🔙 Back", callback_data='settings')]
+            ]),
+            parse_mode="HTML"
+        )    
+    elif query.data == 'toggle_forwarding':
+        data = load_user_data()
+        user_id = str(query.from_user.id).strip()
+        user_data = data["users"].get(user_id, {})
+        current_status = user_data.get("forwarding_on", False)
+        
+        if current_status:
+            await off(update, context)
+        else:
+            await on(update, context)
     elif query.data == 'back':
         await back_to_menu(update, context)
     elif query.data == "words": 
@@ -1761,7 +1825,7 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 [InlineKeyboardButton("🔙 Back", callback_data='back')]
             ])
         )
-    
+
     elif query.data == "my_post":
         await my_posts(update, context)
     elif query.data == "my_groups":
@@ -1905,7 +1969,6 @@ def main():
     application.add_handler(CallbackQueryHandler(login_kbd, pattern="^num_"))
     application.add_handler(CallbackQueryHandler(autoreply_callback))
     application.add_handler(CallbackQueryHandler(all_callback))
-    
 
     application.run_polling()  
 
