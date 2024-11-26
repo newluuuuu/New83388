@@ -48,7 +48,7 @@ async def set_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         message = ' '.join(context.args).split('|')
         keyword = message[0].strip()
-        response = message[1].strip()
+        response = message[1].strip().replace('\\n', '\n')
 
         data = load_user_data()
 
@@ -65,7 +65,6 @@ async def set_word(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     except (IndexError, ValueError):
         await update.message.reply_text("⚠️ *Invalid Format*\n\n📝 Please use:\n`/set_word keyword | response`", parse_mode="Markdown")
-
 
 
 async def keyword_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

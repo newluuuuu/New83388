@@ -162,6 +162,9 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if await is_authorized(user_id):
         if context.args:
             post_message = ' '.join(context.args)  
+            
+            
+            post_message = post_message.replace('\\n', '\n')
 
             data = load_user_data()
 
@@ -175,15 +178,16 @@ async def post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     save_user_data(data)  
 
                     post_index = len(data["users"][user_id]["post_messages"])  
-                    await update.message.reply_text(f"Awesome! 🎉 Your message has been saved with index number {post_index} ✅\n\nWant to add more? Just use\n`/post your message here` 📝", parse_mode="Markdown")
+                    await update.message.reply_text(f"Awesome! 🎉 Your message has been saved with index number {post_index} ✅\n\nWant to add more? Just use\n`/post your message here` 📝\n\nPreview of your message:\n{post_message}", parse_mode="Markdown")
                 except Exception as e:
                     await update.message.reply_text(f"Oops! 😅 Couldn't save your message: {e}")
             else:
                 await update.message.reply_text("Hmm... 🤔 I can't find you in the system.")
         else:
-            await update.message.reply_text("Here's how to use it: `/post your message or text link here` 📝", parse_mode="Markdown")
+            await update.message.reply_text("Here's how to use it: `/post your message or text link here` 📝\n\nYou can use:\n- \\n for new lines\n- *text* for bold\n- `text` for code format", parse_mode="Markdown")
     else:
         await update.message.reply_text(f"Hey! 👋 You'll need an active subscription first. Contact our <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">friendly admin</a> to get started! ✨", parse_mode="HTML")
+        
 
 async def delpost(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)
