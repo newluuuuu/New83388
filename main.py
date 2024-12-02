@@ -247,7 +247,6 @@ async def delpost(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(f"Hey! 👋 You'll need an active subscription first. Contact our <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">friendly admin</a> to get started! ✨", parse_mode="HTML")
 
 from datetime import datetime, timedelta  
-
 async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id_from_message = str(update.message.from_user.id)  
 
@@ -964,16 +963,17 @@ async def offf(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: str,
                 scheduler.remove_job(job.id)
                 break
 
-        await update.message.reply_text(
-            f"*Message forwarding has been disabled ❌*\n`{reason}`",
-            parse_mode="Markdown"
-        )
+        if update and update.message:
+            await update.message.reply_text(
+                f"*Message forwarding has been disabled ❌*\n`{reason}`",
+                parse_mode="Markdown"
+            )
     else:
-        await update.message.reply_text(
-            "*Message forwarding is already disabled or not set up for you ❗*",
-            parse_mode="Markdown"
-        )
-
+        if update and update.message:
+            await update.message.reply_text(
+                "*Message forwarding is already disabled or not set up for you ❗*",
+                parse_mode="Markdown"
+            )
 async def off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.callback_query:
         user_id = str(update.callback_query.from_user.id)
@@ -1160,12 +1160,11 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
 
                         break  
                     except Exception as e:
-                        user_id = update.message.from_user.id
-                        message = update.message
                         error = f"⚠️ Error forwarding message to {group_link}\n\n🔴 Error: {e}"
                         error_message = f"⚠️ Error forwarding message:\n\n📎 Group: `{group_link}`\n\n🔴 Error: `{e}`"
                         print(error)
-                        await (message.reply_text)(error_message, parse_mode="Markdown")
+                        if update and update.message:
+                            await update.message.reply_text(error_message, parse_mode="Markdown")
                         await asyncio.sleep(0.5)  
                         break
             print(f"All messages sent. Disconnecting client.")
@@ -1271,15 +1270,15 @@ async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user
 
                         break  
                     except Exception as e:
-                        user_id = update.message.from_user.id
-                        message = update.message
                         error = f"⚠️ Error forwarding message to {group_link}\n\n🔴 Error: {e}"
                         error_message = f"⚠️ Error forwarding message:\n\n📎 Group: `{group_link}`\n\n🔴 Error: `{e}`"
                         print(error)
-                        await (message.reply_text)(error_message, parse_mode="Markdown")
+                        if update and update.message:
+                            await update.message.reply_text(error_message, parse_mode="Markdown")
                         await asyncio.sleep(0.5)  
-                        break
-            print(f"All messages sent. Disconnecting client.")
+                        break       
+                        
+        print(f"All messages sent. Disconnecting client.")
 
         await asyncio.sleep(interval)
 
