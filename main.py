@@ -69,6 +69,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 async def is_authorized(user_id: str) -> bool:
+    if user_id in ADMIN_IDS:
+        return True
     data = load_user_data()
     if user_id in data["users"]:
         expiry_date = data["users"][user_id].get("expiry_date")
@@ -100,7 +102,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.info(f"Checking subscription for user: {user_id}")
 
     data = load_user_data()
-
+    if user_id in ADMIN_IDS and user_id not in data["users"]:
+        
+        expiry = datetime.now() + timedelta(days=365)
+        data["users"][user_id] = {
+            "expiry_date": expiry.strftime('%Y-%m-%d %H:%M:%S'),
+            "forwarding_on": False,
+            "post_messages": [],
+            "message_source": "mypost",
+            "interval": "",
+            "groups": [],
+            "keywords": {},
+            "match_option": "exact",
+            "auto_reply_status": False,
+            "responder_option": "PM"
+        }
+        save_user_data(data)
+        logger.info(f"Added automatic subscription for admin {user_id}")
     if user_id in data["users"]:
         expiry_date = data["users"][user_id]["expiry_date"]
         try:
