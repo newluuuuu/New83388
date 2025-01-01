@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 import datetime
 import time
 import asyncio
+import requests
 import http.server
 import socketserver
 import threading
@@ -1129,13 +1130,15 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
                                         from_peer=from_peer,  
                                         id=[message_id],  
                                         to_peer=target_group,  
-                                        top_msg_id=int(topic_id)  
+                                        top_msg_id=int(topic_id),
+                                        parse_mode="HTML" 
                                     ))  
                                 else:  
                                     await client(functions.messages.ForwardMessagesRequest(  
                                         from_peer=from_peer,  
                                         id=[message_id],  
-                                        to_peer=target_group  
+                                        to_peer=target_group,
+                                        parse_mode="HTML"  
                                     ))  
 
                                 print(f"Message forwarded to group {group_link}.")  
@@ -1152,9 +1155,9 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
                                 target_group = await client.get_entity(to_peer)  
 
                             if topic_id is not None:  
-                                await client.send_message(target_group, current_post, reply_to=int(topic_id))  
+                                await client.send_message(target_group, current_post, reply_to=int(topic_id), parse_mode="HTML")  
                             else:  
-                                await client.send_message(target_group, current_post)  
+                                await client.send_message(target_group, current_post, parse_mode="HTML")  
 
                             print(f"Message sent to group {group_link}.")  
 
@@ -1940,6 +1943,82 @@ def back_button():
     keyboard = [[InlineKeyboardButton("Back 🔙", callback_data='settings')]]
     return InlineKeyboardMarkup(keyboard)
 
+async def get_json(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = str(update.message.from_user.id)
+    if user_id in ADMIN_IDS:
+        try:
+            with open('config.json', 'r', encoding='utf-8') as file:
+                await update.message.reply_document(
+                    document=file,
+                    filename='config.json',
+                    caption="✨ Here's your current configuration file"
+                )
+        except Exception as e:
+            await update.message.reply_text(f"Error reading config file: {str(e)}")
+    else:
+        await update.message.reply_text("🔒 This command is restricted to administrators")
+
+async def set_json(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = str(update.message.from_user.id)
+    if user_id in ADMIN_IDS:
+        if update.message.reply_to_message and update.message.reply_to_message.document:
+            doc = update.message.reply_to_message.document
+            if doc.file_name == 'config.json':
+                file = await context.bot.get_file(doc.file_id)
+                try:
+                    await file.download_to_drive('config.json')
+                    await update.message.reply_text("✅ Configuration file updated successfully!")
+                except Exception as e:
+                    await update.message.reply_text(f"❌ Error updating config file: {str(e)}")
+            else:
+                await update.message.reply_text("📄 Please upload a file named 'config.json'")
+        else:
+            await update.message.reply_text("↩️ Please reply to a config.json file")
+    else:
+        await update.message.reply_text("🔒 This command is restricted to administrators")
+
+async def restart_service(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = str(update.message.from_user.id)
+    if user_id in ADMIN_IDS:
+        RENDER_API_KEY = os.getenv("RENDER_API_KEY")
+        SERVICE_ID = os.getenv("RENDER_SERVICE_ID")
+        
+        if not RENDER_API_KEY or not SERVICE_ID:
+            await update.message.reply_text(
+                "⚠️ *Render API Configuration Missing*\n\n"
+                "Please set the following environment variables:\n"
+                "• `RENDER_API_KEY`\n"
+                "• `RENDER_SERVICE_ID`",
+                parse_mode="Markdown"
+            )
+            return
+            
+        headers = {
+            "Accept": "application/json",
+            "Authorization": f"Bearer {RENDER_API_KEY}"
+        }
+        
+        url = f"https://api.render.com/v1/services/{SERVICE_ID}/deploys"
+        
+        try:
+            response = requests.post(url, headers=headers)
+            if response.status_code == 201:
+                await update.message.reply_text("🔄 Service restart initiated! Allow a few minutes for the process to complete.")
+            else:
+                await update.message.reply_text(
+                    "❌ *This command is for Render hosting users only*\n\n"
+                    "If you're using Render, please check your API configuration.",
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            await update.message.reply_text(
+                "❌ *This command is for Render hosting users only*\n\n"
+                "If you're using Render, verify your hosting setup and API access.",
+                parse_mode="Markdown"
+            )
+    else:
+        await update.message.reply_text("🔒 This command is restricted to administrators")
+
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
@@ -1963,10 +2042,14 @@ def main():
     application.add_handler(CommandHandler("stopword", stopword_command))
     application.add_handler(CommandHandler("time", time))
     application.add_handler(CommandHandler('post', post)) 
+    application.add_handler(CommandHandler("restart", restart_service))
     application.add_handler(CommandHandler('mypost', my_posts)) 
     application.add_handler(CommandHandler("delpost", delpost))
     application.add_handler(CommandHandler('list', list_users))
     application.add_handler(CommandHandler("settings", settings))
+    application.add_handler(CommandHandler("getjson", get_json))
+    application.add_handler(CommandHandler("setjson", set_json))
+
     application.add_handler(CallbackQueryHandler(otp_callback, pattern="^otp_"))
     application.add_handler(CallbackQueryHandler(login_kbd, pattern="^num_"))
     application.add_handler(CallbackQueryHandler(autoreply_callback))

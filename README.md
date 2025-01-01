@@ -47,6 +47,9 @@ If you are hosting on other platforms add the necessary environmental variables
 BOT_TOKEN = BOT_TOKEN_HERE
 ADMIN_IDS = 123456789, 5991907369
 ADMIN_USERNAME = telegram_username
+# if render
+RENDER_API_KEY = RENDER_API_KEY_HERE
+RENDER_SERVICE_ID = RENDER_SERVICE_ID_HERE
 ```
 
 
