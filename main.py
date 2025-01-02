@@ -1148,15 +1148,14 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
                                         from_peer=from_peer,  
                                         id=[message_id],  
                                         to_peer=target_group,  
-                                        top_msg_id=int(topic_id),
-                                        parse_mode="HTML" 
+                                        top_msg_id=int(topic_id)
+                                       
                                     ))  
                                 else:  
                                     await client(functions.messages.ForwardMessagesRequest(  
                                         from_peer=from_peer,  
                                         id=[message_id],  
-                                        to_peer=target_group,
-                                        parse_mode="HTML"  
+                                        to_peer=target_group  
                                     ))  
 
                                 print(f"Message forwarded to group {group_link}.")  
