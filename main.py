@@ -1014,11 +1014,12 @@ async def off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             json.dump(config_data, f, indent=4)
 
         job_removed = False
-        for job in scheduler.get_jobs():
-            if job.args[2] == user_id:  
-                scheduler.remove_job(job.id)
-                job_removed = True
-                break
+        if scheduler.running:
+            for job in scheduler.get_jobs():
+                if job.args[2] == user_id:  
+                    scheduler.remove_job(job.id)
+                    job_removed = True
+                    break
 
         response_text = "✅ *Message Forwarding Status*\n\n❌ *Forwarding has been disabled*\n└ _Your automated message forwarding service is now turned off_" if job_removed else "ℹ️ *Forwarding Status*\n\n❗ *No Active Service Found*\n└ _There are no running forwarding tasks for your account_"
 
@@ -1195,7 +1196,9 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         with open("config.json", "w") as f:
             json.dump(config_data, f, indent=4)
         await asyncio.sleep(interval)  
-
+    except asyncio.CancelledError:
+        print(f"Message forwarding for user {user_id} was canceled.")
+        return 
     except Exception as e:
         print(f"An error occurred in forward_messages: {e}")
         await offf(update, context, user_id, reason=f"An error occurred in forward_messages: {e}")
@@ -1301,7 +1304,9 @@ async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user
         print(f"All messages sent. Disconnecting client.")
 
         await asyncio.sleep(interval)
-
+    except asyncio.CancelledError:
+        print(f"Message forwarding for user {user_id} was canceled.")
+        return 
     except Exception as e:
         print(f"An error occurred in forward_messages: {e}")
         await offf(update, context, user_id, reason=f"An error occurred in forward_messages: {e}")
