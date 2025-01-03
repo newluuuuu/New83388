@@ -19,12 +19,14 @@ import threading
 import json
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from autoreply import set_word, keyword_settings, start_telethon_client, stop_telethon_client
+from stats import *
+from payment import *
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 scheduler = AsyncIOScheduler()
 ADMIN_IDS = os.getenv("ADMIN_IDS").split(',') 
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "devscottreal")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "echoFluxxx")
 session_lock = asyncio.Lock()
 
 def load_config():
@@ -133,27 +135,26 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             return
 
         if time_left >= 0:
-
             keyboard = [
-                [InlineKeyboardButton("HELP GUIDE ❕", callback_data='help')],
-                [InlineKeyboardButton("AUTO RESPONDER GUIDE❕", url='https://telegra.ph/AUTO-RESPONDER-GUIDE-11-11')],
-                [InlineKeyboardButton("API AND HASH ID 🎥", url='https://youtu.be/8naENmP3rg4?si=LVxsTXSSI864t6Kv')],
-                [InlineKeyboardButton("LOGIN WITH TELEGRAM 🔑", callback_data='login')],
-                [InlineKeyboardButton("Settings ⚙️", callback_data='settings')],
-                [InlineKeyboardButton("Auto Reply ⚙️", callback_data='auto_reply')]
-            ]
+                [InlineKeyboardButton("𝗛𝗘𝗟𝗣 𝗚𝗨𝗜𝗗𝗘 ❕", callback_data='help')],
+                [InlineKeyboardButton("𝗔𝗨𝗧𝗢 𝗥𝗘𝗦𝗣𝗢𝗡𝗗𝗘𝗥 𝗚𝗨𝗜𝗗𝗘❕", url='https://telegra.ph/AUTO-RESPONDER-GUIDE-11-11')],
+                [InlineKeyboardButton("𝗔𝗣𝗜 𝗔𝗡𝗗 𝗛𝗔𝗦𝗛 𝗜𝗗 🎥", url='https://youtu.be/8naENmP3rg4?si=LVxsTXSSI864t6Kv')],
+                [InlineKeyboardButton("𝗟𝗢𝗚𝗜𝗡 𝗪𝗜𝗧𝗛 𝗧𝗘𝗟𝗘𝗚𝗥𝗔𝗠 🔑", callback_data='login')],
+                [InlineKeyboardButton("𝗦𝗲𝘁𝘁𝗶𝗻𝗴𝘀 ⚙️", callback_data='settings')],
+                [InlineKeyboardButton("𝗔𝘂𝘁𝗼 𝗥𝗲𝗽𝗹𝘆 ⚙️", callback_data='auto_reply')],
+                [InlineKeyboardButton("𝗦𝘁𝒂𝘁𝘀 📈", callback_data='refresh_stats')],
+            ]          
             reply_markup = InlineKeyboardMarkup(keyboard)
             await update.message.reply_text(  
                 "===================================\n"  
-                "       👋 Welcome to\n"  
-                "     <b>DEVSCOTT AUTO FORWARDER Bot</b>\n"  
+                "       👋 𝐖𝐞𝐥𝐜𝐨𝐦𝐞 𝐭𝐨\n"  
+                "     <b>𝔻𝔼𝕍𝕊ℂ𝕆𝕋𝕋 𝔸𝕌𝕋𝕆 𝔽𝕆ℝ𝕎𝔸ℝ𝔻𝔼ℝ 𝔹𝕠𝕥</b>\n"  
                 "-----------------------------------\n"  
-                " Your subscription is active until:\n"  
+                " 𝒀𝒐𝒖𝒓 𝒔𝒖𝒃𝒔𝒄𝒓𝒊𝒑𝒕𝒊𝒐𝒏 𝒊𝒔 𝒂𝒄𝒕𝒊𝒗𝒆 𝒖𝒏𝒕𝒊𝒍:\n"  
                 f"       <b>{formatted_expiry}</b> 📅\n"  
                 "===================================",  
                 reply_markup=reply_markup,  
-                parse_mode="HTML"  
-            )  
+                parse_mode="HTML"              )  
         else:
 
             await update.message.reply_text(
@@ -174,6 +175,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if user_id in data["users"]:
             data["users"][user_id]["forwarding_on"] = False
         save_user_data(data)
+
 
 async def post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = str(update.message.from_user.id)  
@@ -1179,6 +1181,7 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
 
                             print(f"Message sent to group {group_link}.")  
 
+                        await track_forward(user_id, True, group_link)
                         break  
                     except Exception as e:
                         error = f"⚠️ Error forwarding message to {group_link}\n\n🔴 Error: {e}"
@@ -1186,7 +1189,8 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
                         print(error)
                         if update and update.message:
                             await update.message.reply_text(error_message, parse_mode="Markdown")
-                        await asyncio.sleep(0.5)  
+                        await asyncio.sleep(0.5) 
+                        await track_forward(user_id, False, group_link) 
                         break
             print(f"All messages sent. Disconnecting client.")
 
@@ -1288,10 +1292,12 @@ async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user
                                     to_peer=target_group
                                 ))
                             print(f"Message forwarded to group {group_link}.")
+                            await track_forward(user_id, True, group_link)
                         else:
                             print(f"Message does not contain text, skipping: {current_post.id}")
-
+                        
                         break  
+                       
                     except Exception as e:
                         error = f"⚠️ Error forwarding message to {group_link}\n\n🔴 Error: {e}"
                         error_message = f"⚠️ Error forwarding message:\n\n📎 Group: `{group_link}`\n\n🔴 Error: `{e}`"
@@ -1299,10 +1305,11 @@ async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user
                         if update and update.message:
                             await update.message.reply_text(error_message, parse_mode="Markdown")
                         await asyncio.sleep(0.5)  
+                        await track_forward(user_id, False, group_link) 
                         break       
                         
         print(f"All messages sent. Disconnecting client.")
-
+        
         await asyncio.sleep(interval)
     except asyncio.CancelledError:
         print(f"Message forwarding for user {user_id} was canceled.")
@@ -1575,14 +1582,14 @@ async def my_groups(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await message.reply_text(message_text, reply_markup=reply_markup, parse_mode="Markdown")
 async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
-        [InlineKeyboardButton("HELP GUIDE ❕", callback_data='help')],
-        [InlineKeyboardButton("AUTO RESPONDER GUIDE❕", url='https://telegra.ph/AUTO-RESPONDER-GUIDE-11-11')],
-        [InlineKeyboardButton("API AND HASH ID 🎥", url='https://youtu.be/8naENmP3rg4?si=LVxsTXSSI864t6Kv')],
-        [InlineKeyboardButton("LOGIN WITH TELEGRAM 🔑", callback_data='login')],
-        [InlineKeyboardButton("Settings ⚙️", callback_data='settings')],
-        [InlineKeyboardButton("Auto Reply ⚙️", callback_data='auto_reply')]
-    ]
-
+                [InlineKeyboardButton("𝗛𝗘𝗟𝗣 𝗚𝗨𝗜𝗗𝗘 ❕", callback_data='help')],
+                [InlineKeyboardButton("𝗔𝗨𝗧𝗢 𝗥𝗘𝗦𝗣𝗢𝗡𝗗𝗘𝗥 𝗚𝗨𝗜𝗗𝗘❕", url='https://telegra.ph/AUTO-RESPONDER-GUIDE-11-11')],
+                [InlineKeyboardButton("𝗔𝗣𝗜 𝗔𝗡𝗗 𝗛𝗔𝗦𝗛 𝗜𝗗 🎥", url='https://youtu.be/8naENmP3rg4?si=LVxsTXSSI864t6Kv')],
+                [InlineKeyboardButton("𝗟𝗢𝗚𝗜𝗡 𝗪𝗜𝗧𝗛 𝗧𝗘𝗟𝗘𝗚𝗥𝗔𝗠 🔑", callback_data='login')],
+                [InlineKeyboardButton("𝗦𝗲𝘁𝘁𝗶𝗻𝗴𝘀 ⚙️", callback_data='settings')],
+                [InlineKeyboardButton("𝗔𝘂𝘁𝗼 𝗥𝗲𝗽𝗹𝘆 ⚙️", callback_data='auto_reply')],
+                [InlineKeyboardButton("𝗦𝘁𝒂𝘁𝘀 📈", callback_data='refresh_stats')],
+            ]  
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if update.message:
@@ -2071,7 +2078,16 @@ def main():
     application.add_handler(CommandHandler("settings", settings))
     application.add_handler(CommandHandler("getjson", get_json))
     application.add_handler(CommandHandler("setjson", set_json))
+    application.add_handler(CommandHandler("gettrack", get_track))
+    application.add_handler(CommandHandler("settrack", set_track))
+    application.add_handler(CommandHandler("stats", stats))
+    application.add_handler(CommandHandler("payment", show_payment_options))
 
+
+    application.add_handler(CallbackQueryHandler(handle_payment_selection, pattern="^pay_"))
+    application.add_handler(CallbackQueryHandler(handle_payment_sent, pattern="^payment_sent$"))
+    application.add_handler(CallbackQueryHandler(handle_payment_cancel, pattern="^cancel_payment$"))
+    application.add_handler(CallbackQueryHandler(stats, pattern="^refresh_stats$"))
     application.add_handler(CallbackQueryHandler(otp_callback, pattern="^otp_"))
     application.add_handler(CallbackQueryHandler(login_kbd, pattern="^num_"))
     application.add_handler(CallbackQueryHandler(autoreply_callback))

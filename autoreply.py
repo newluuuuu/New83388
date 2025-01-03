@@ -84,43 +84,41 @@ async def keyword_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
    
     match_option = user_data.get("match_option", "exact")
-    auto_reply_status = "Enabled ✅" if user_data.get("auto_reply_status", False) else "Disabled ❌"
-    auto_reply_text = "Disable 🔴" if user_data.get("auto_reply_status", False) else "Enable 🟢"
-    responder_option = user_data.get("responder_option", "PM") 
+    auto_reply_status = "𝙴𝚗𝚊𝚋𝚕𝚎𝚍 ✅" if user_data.get("auto_reply_status", False) else "𝙳𝚒𝚜𝚊𝚋𝚕𝚎𝚍 ❌"
+    auto_reply_text = "𝙳𝚒𝚜𝚊𝚋𝚕𝚎 🔴" if user_data.get("auto_reply_status", False) else "𝙴𝚗𝚊𝚋𝚕𝚎 🟢"
+    responder_option = user_data.get("responder_option", "𝙿𝙼") 
 
     keyboard = [
-        [InlineKeyboardButton("━━━━⊱MATCH OPTIONS⊰━━━", callback_data="pass")],
-        [InlineKeyboardButton(f"Exact Match {'✅' if match_option == 'exact' else '❌'}", callback_data='set_exact')],
-        [InlineKeyboardButton(f"Partial Match {'✅' if match_option == 'partial' else '❌'}", callback_data='set_partial')],
-        [InlineKeyboardButton(f"Case Insensitive {'✅' if match_option == 'case_insensitive' else '❌'}", callback_data='set_case_insensitive')],
-        [InlineKeyboardButton("━━━━⊱RESPONSE SETTINGS⊰━━━", callback_data="pass")],
-        [InlineKeyboardButton(f"PM {'✅' if responder_option == 'PM' else '❌'}", callback_data='set_pm'),
-         InlineKeyboardButton(f"GC {'✅' if responder_option == 'GC' else '❌'}", callback_data='set_gc'),
-         InlineKeyboardButton(f"All {'✅' if responder_option == 'All' else '❌'}", callback_data='set_all')],
+        [InlineKeyboardButton("━━━━⊱𝙼𝙰𝚃𝙲𝙷 𝙾𝙿𝚃𝙸𝙾𝙽𝚂⊰━━━", callback_data="pass")],
+        [InlineKeyboardButton(f"𝙴𝚡𝚊𝚌𝚝 𝙼𝚊𝚝𝚌𝚑 {'✅' if match_option == 'exact' else '❌'}", callback_data='set_exact')],
+        [InlineKeyboardButton(f"𝙿𝚊𝚛𝚝𝚒𝚊𝚕 𝙼𝚊𝚝𝚌𝚑 {'✅' if match_option == 'partial' else '❌'}", callback_data='set_partial')],
+        [InlineKeyboardButton(f"𝙲𝚊𝚜𝚎 𝙸𝚗𝚜𝚎𝚗𝚜𝚒𝚝𝚒𝚟𝚎 {'✅' if match_option == 'case_insensitive' else '❌'}", callback_data='set_case_insensitive')],
+        [InlineKeyboardButton("━━━━⊱𝚁𝙴𝚂𝙿𝙾𝙽𝚂𝙴 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂⊰━━━", callback_data="pass")],
+        [InlineKeyboardButton(f"𝙿𝙼 {'✅' if responder_option == 'PM' else '❌'}", callback_data='set_pm'),
+         InlineKeyboardButton(f"𝙶𝙲 {'✅' if responder_option == 'GC' else '❌'}", callback_data='set_gc'),
+         InlineKeyboardButton(f"𝙰𝚕𝚕 {'✅' if responder_option == 'All' else '❌'}", callback_data='set_all')],
         [InlineKeyboardButton(f"{auto_reply_text}", callback_data='toggle_auto_reply')],
-        [InlineKeyboardButton("📝 My Keywords", callback_data='words')],
-        [InlineKeyboardButton("🔙 Back", callback_data='back')]
+        [InlineKeyboardButton("📝 𝙼𝚢 𝙺𝚎𝚢𝚠𝚘𝚛𝚍𝚜", callback_data='words')],
+        [InlineKeyboardButton("🔙 𝙱𝚊𝚌𝚔", callback_data='back')]
     ]
     respond_display = {
-        'PM': 'Private Chat',
-        'GC': 'Groups',
-        'All': 'DMs & Groups'
+        'PM': '𝙿𝚛𝚒𝚟𝚊𝚝𝚎 𝙲𝚑𝚊𝚝',
+        'GC': '𝙶𝚛𝚘𝚞𝚙𝚜',
+        'All': '𝙳𝙼𝚜 & 𝙶𝚛𝚘𝚞𝚙𝚜'
     }.get(responder_option, responder_option)
 
    
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.callback_query.edit_message_text(
-        "⚙️ <b>AUTO-REPLY SETTINGS</b>\n\n"
+        "⚙️ <b>𝙰𝚄𝚃𝙾-𝚁𝙴𝙿𝙻𝚈 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂</b>\n\n"
         "━━━━━━━━━━━━━━━\n"
-        f"🎯 <b>Match Mode:</b> <code>{match_option}</code>\n"
-        f"📊 <b>Status:</b> <code>{auto_reply_status}</code>\n"
-        f"🌐 <b>Respond In:</b> <code>{respond_display}</code>\n"
+        f"🎯 <b>𝙼𝚊𝚝𝚌𝚑 𝙼𝚘𝚍𝚎:</b> <code>{match_option}</code>\n"
+        f"📊 <b>𝚂𝚝𝚊𝚝𝚞𝚜:</b> <code>{auto_reply_status}</code>\n"
+        f"🌐 <b>𝚁𝚎𝚜𝚙𝚘𝚗𝚍 𝙸𝚗:</b> <code>{respond_display}</code>\n"
         "━━━━━━━━━━━━━━━",
         reply_markup=reply_markup,
         parse_mode="HTML"
     )
-
-
 async def start_telethon_client(user_id, context=None):
     data = load_user_data()
     user_data = data["users"].get(user_id)
