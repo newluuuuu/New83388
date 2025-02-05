@@ -2,8 +2,9 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telethon.sync import TelegramClient
 from telethon import TelegramClient, events
-from telethon.tl.types import User, Chat
+from telethon.tl.types import User, Chat, MessageMediaPhoto, MessageMediaDocument
 from telethon.errors.rpcerrorlist import AuthKeyUnregisteredError
+from telethon.errors import FloodWaitError
 import re
 import os
 import json
@@ -16,6 +17,7 @@ from dotenv import load_dotenv
 load_dotenv()
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "devscottreal")
 
+FURL = "https://t.me/echofluxxx" 
 active_clients = {}
 last_reply_time = {}
 
@@ -119,6 +121,8 @@ async def keyword_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         reply_markup=reply_markup,
         parse_mode="HTML"
     )
+
+
 async def start_telethon_client(user_id, context=None):
     data = load_user_data()
     user_data = data["users"].get(user_id)
@@ -194,6 +198,60 @@ async def start_telethon_client(user_id, context=None):
         save_user_data(data)
         return
 
+    async def handle_vv_command(event):
+        """
+        Handles the /vv command to download a specific self-destructing media.
+        """
+        try:
+            reply = await event.message.get_reply_message()
+            if not reply or not reply.media:
+                await event.reply("Reply to a message containing self-destructing media to use the /vv command.")
+                return
+
+            media = reply.media
+            is_self_destruct = (
+                isinstance(media, (MessageMediaPhoto, MessageMediaDocument)) and
+                getattr(media, "ttl_seconds", None) is not None
+            )
+
+            if not is_self_destruct:
+                await event.reply("The replied-to message does not contain self-destructing media.")
+                return
+
+            logger.info("Downloading self-destructing media targeted by /vv command.")
+
+            try:
+                download_path = await reply.download_media()
+                logger.info(f"Downloaded self-destructing media to {download_path}")
+
+                caption = f"""
+                  ╔══════════════╗
+                  ║🎯 *DOWNLOADED* 🎯
+                  ║ Self-destruct ✓
+                  ║                 
+                  ║ ⚠️ *WARNING* ⚠️   
+                  ║    Nothing escapes   
+                  ║                 
+                  ║ [̲̅$̲̅(̲̅ ͡°͜ʖ ͡°̲̅)̲̅$̲̅]   
+                  ║ [Made with ❤️ by FluX𝕏♛]({FURL})  
+                  ╚══════════════╝
+                  """
+                try:
+                    await event.client.send_file(event.chat_id, download_path, caption=caption, parse_mode='Markdown')
+                except FloodWaitError as e:
+                    logger.warning(f"FloodWaitError: Waiting for {e.seconds} seconds")
+                    await asyncio.sleep(e.seconds)
+                    await event.client.send_file(event.chat_id, download_path, caption=caption, parse_mode='Markdown')
+                
+                os.remove(download_path)
+                logger.info(f"Removed downloaded file from {download_path}")
+            except Exception as e:
+                logger.error(f"Failed to download media: {e}")
+                await event.reply("Failed to download the media.")
+        except Exception as e:
+            logger.exception(f"Error handling /vv command: {e}")
+            await event.reply("An error occurred while processing the /vv command.")
+
     @client.on(events.NewMessage)
     async def handler(event):
         try:
@@ -203,6 +261,10 @@ async def start_telethon_client(user_id, context=None):
             message_text = event.message.message
 
             print(f"📥 Received message in {chat_name}")
+
+            if message_text.startswith('/vv') and event.message.is_reply:
+                await handle_vv_command(event)
+                return
 
             keywords = user_data.get("keywords", {})
             match_option = user_data.get("match_option", "exact").lower()
