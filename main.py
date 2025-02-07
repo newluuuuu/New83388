@@ -1587,7 +1587,7 @@ async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 [InlineKeyboardButton("𝗔𝗣𝗜 𝗔𝗡𝗗 𝗛𝗔𝗦𝗛 𝗜𝗗 🎥", url='https://youtu.be/8naENmP3rg4?si=LVxsTXSSI864t6Kv')],
                 [InlineKeyboardButton("𝗟𝗢𝗚𝗜𝗡 𝗪𝗜𝗧𝗛 𝗧𝗘𝗟𝗘𝗚𝗥𝗔𝗠 🔑", callback_data='login')],
                 [InlineKeyboardButton("𝗦𝗲𝘁𝘁𝗶𝗻𝗴𝘀 ⚙️", callback_data='settings')],
-                [InlineKeyboardButton("𝗔𝘂𝘁𝗼 𝗥𝗲𝗽𝗹𝘆 ⚙️", callback_data='auto_reply')],
+                [InlineKeyboardButton("𝗔𝘂𝘁𝗼 𝗥𝗲𝗽𝗹𝘆 + 𝙰𝙽𝚃𝙸 𝚅𝙸𝙴𝚆 𝙾𝙽𝙲𝙴 ⚙️", callback_data='auto_reply')],
                 [InlineKeyboardButton("𝗦𝘁𝒂𝘁𝘀 📈", callback_data='refresh_stats')],
             ]  
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1763,12 +1763,14 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     try:
         await query.edit_message_text(
-            "⚙️ <b>AUTO-REPLY SETTINGS</b>\n\n"
-            "━━━━━━━━━━━━━━━\n"
-            f"🎯 <b>Match Mode:</b> <code>{match_option}</code>\n"
-            f"📊 <b>Status:</b> <code>{auto_reply_status}</code>\n"
-            f"🌐 <b>Respond In:</b> <code>{respond_display}</code>\n"
-            "━━━━━━━━━━━━━━━",
+            "⚙️ <b>𝙰𝚄𝚃𝙾-𝚁𝙴𝙿𝙻𝚈 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂 + 𝙰𝙽𝚃𝙸 𝚅𝙸𝙴𝚆 𝙾𝙽𝙲𝙴</b>\n\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            f"🎯 <b>𝙼𝚊𝚝𝚌𝚑 𝙼𝚘𝚍𝚎:</b> <code>{match_option}</code>\n"
+            f"📊 <b>𝚂𝚝𝚊𝚝𝚞𝚜:</b> <code>{auto_reply_status}</code>\n"
+            f"🌐 <b>𝚁𝚎𝚜𝚙𝚘𝚗𝚍 𝙸𝚗:</b> <code>{respond_display}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "📸 <b>𝙰𝚗𝚝𝚒 𝚅𝚒𝚎𝚠 𝙾𝚗𝚌𝚎:</b>\n"
+            "<code>𝚁𝚎𝚙𝚕𝚢 𝚝𝚘 𝚊𝚗𝚢 𝚟𝚒𝚎𝚠 𝚘𝚗𝚌𝚎 𝚖𝚎𝚍𝚒𝚊 𝚠𝚒𝚝𝚑 /𝚟𝚟</code>",
             reply_markup=reply_markup,
             parse_mode="HTML"
         )

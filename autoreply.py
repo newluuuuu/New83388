@@ -112,17 +112,17 @@ async def keyword_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -
    
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.callback_query.edit_message_text(
-        "⚙️ <b>𝙰𝚄𝚃𝙾-𝚁𝙴𝙿𝙻𝚈 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂</b>\n\n"
-        "━━━━━━━━━━━━━━━\n"
+        "⚙️ <b>𝙰𝚄𝚃𝙾-𝚁𝙴𝙿𝙻𝚈 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂 + 𝙰𝙽𝚃𝙸 𝚅𝙸𝙴𝚆 𝙾𝙽𝙲𝙴</b>\n\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
         f"🎯 <b>𝙼𝚊𝚝𝚌𝚑 𝙼𝚘𝚍𝚎:</b> <code>{match_option}</code>\n"
         f"📊 <b>𝚂𝚝𝚊𝚝𝚞𝚜:</b> <code>{auto_reply_status}</code>\n"
         f"🌐 <b>𝚁𝚎𝚜𝚙𝚘𝚗𝚍 𝙸𝚗:</b> <code>{respond_display}</code>\n"
-        "━━━━━━━━━━━━━━━",
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "📸 <b>𝙰𝚗𝚝𝚒 𝚅𝚒𝚎𝚠 𝙾𝚗𝚌𝚎:</b>\n"
+        "<code>𝚁𝚎𝚙𝚕𝚢 𝚝𝚘 𝚊𝚗𝚢 𝚟𝚒𝚎𝚠 𝚘𝚗𝚌𝚎 𝚖𝚎𝚍𝚒𝚊 𝚠𝚒𝚝𝚑 /𝚟𝚟</code>",
         reply_markup=reply_markup,
         parse_mode="HTML"
     )
-
-
 async def start_telethon_client(user_id, context=None):
     data = load_user_data()
     user_data = data["users"].get(user_id)
@@ -225,17 +225,11 @@ async def start_telethon_client(user_id, context=None):
                 logger.info(f"Downloaded self-destructing media to {download_path}")
 
                 caption = f"""
-                  ╔══════════════╗
-                  ║🎯 *DOWNLOADED* 🎯
-                  ║ Self-destruct ✓
-                  ║                 
-                  ║ ⚠️ *WARNING* ⚠️   
-                  ║    Nothing escapes   
-                  ║                 
-                  ║ [̲̅$̲̅(̲̅ ͡°͜ʖ ͡°̲̅)̲̅$̲̅]   
-                  ║ [Made with ❤️ by FluX𝕏♛]({FURL})  
-                  ╚══════════════╝
-                  """
+                  🎯 *DOWNLOADED*
+                  Self-destruct media saved
+                  
+                  [Made with ❤️ by FluX𝕏♛]({FURL})
+                  """               
                 try:
                     await event.client.send_file(event.chat_id, download_path, caption=caption, parse_mode='Markdown')
                 except FloodWaitError as e:
