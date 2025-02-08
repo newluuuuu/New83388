@@ -89,20 +89,25 @@ async def keyword_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     auto_reply_status = "𝙴𝚗𝚊𝚋𝚕𝚎𝚍 ✅" if user_data.get("auto_reply_status", False) else "𝙳𝚒𝚜𝚊𝚋𝚕𝚎𝚍 ❌"
     auto_reply_text = "𝙳𝚒𝚜𝚊𝚋𝚕𝚎 🔴" if user_data.get("auto_reply_status", False) else "𝙴𝚗𝚊𝚋𝚕𝚎 🟢"
     responder_option = user_data.get("responder_option", "𝙿𝙼") 
+    save_location = user_data.get("save_location", "chat")
 
     keyboard = [
-        [InlineKeyboardButton("━━━━⊱𝙼𝙰𝚃𝙲𝙷 𝙾𝙿𝚃𝙸𝙾𝙽𝚂⊰━━━", callback_data="pass")],
-        [InlineKeyboardButton(f"𝙴𝚡𝚊𝚌𝚝 𝙼𝚊𝚝𝚌𝚑 {'✅' if match_option == 'exact' else '❌'}", callback_data='set_exact')],
-        [InlineKeyboardButton(f"𝙿𝚊𝚛𝚝𝚒𝚊𝚕 𝙼𝚊𝚝𝚌𝚑 {'✅' if match_option == 'partial' else '❌'}", callback_data='set_partial')],
-        [InlineKeyboardButton(f"𝙲𝚊𝚜𝚎 𝙸𝚗𝚜𝚎𝚗𝚜𝚒𝚝𝚒𝚟𝚎 {'✅' if match_option == 'case_insensitive' else '❌'}", callback_data='set_case_insensitive')],
-        [InlineKeyboardButton("━━━━⊱𝚁𝙴𝚂𝙿𝙾𝙽𝚂𝙴 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂⊰━━━", callback_data="pass")],
-        [InlineKeyboardButton(f"𝙿𝙼 {'✅' if responder_option == 'PM' else '❌'}", callback_data='set_pm'),
-         InlineKeyboardButton(f"𝙶𝙲 {'✅' if responder_option == 'GC' else '❌'}", callback_data='set_gc'),
-         InlineKeyboardButton(f"𝙰𝚕𝚕 {'✅' if responder_option == 'All' else '❌'}", callback_data='set_all')],
-        [InlineKeyboardButton(f"{auto_reply_text}", callback_data='toggle_auto_reply')],
-        [InlineKeyboardButton("📝 𝙼𝚢 𝙺𝚎𝚢𝚠𝚘𝚛𝚍𝚜", callback_data='words')],
-        [InlineKeyboardButton("🔙 𝙱𝚊𝚌𝚔", callback_data='back')]
+            [InlineKeyboardButton("━━━━⊱𝙼𝙰𝚃𝙲𝙷 𝙾𝙿𝚃𝙸𝙾𝙽𝚂⊰━━━", callback_data="pass")],
+            [InlineKeyboardButton(f"𝙴𝚡𝚊𝚌𝚝 𝙼𝚊𝚝𝚌𝚑 {'✅' if match_option == 'exact' else '❌'}", callback_data='set_exact')],
+            [InlineKeyboardButton(f"𝙿𝚊𝚛𝚝𝚒𝚊𝚕 𝙼𝚊𝚝𝚌𝚑 {'✅' if match_option == 'partial' else '❌'}", callback_data='set_partial')],
+            [InlineKeyboardButton(f"𝙲𝚊𝚜𝚎 𝙸𝚗𝚜𝚎𝚗𝚜𝚒𝚝𝚒𝚟𝚎 {'✅' if match_option == 'case_insensitive' else '❌'}", callback_data='set_case_insensitive')],
+            [InlineKeyboardButton("━━━━⊱𝚁𝙴𝚂𝙿𝙾𝙽𝚂𝙴 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂⊰━━━", callback_data="pass")],
+            [InlineKeyboardButton(f"𝙿𝙼 {'✅' if responder_option == 'PM' else '❌'}", callback_data='set_pm'),
+            InlineKeyboardButton(f"𝙶𝙲 {'✅' if responder_option == 'GC' else '❌'}", callback_data='set_gc'),
+            InlineKeyboardButton(f"𝙰𝚕𝚕 {'✅' if responder_option == 'All' else '❌'}", callback_data='set_all')],
+            [InlineKeyboardButton("━━━━⊱𝙰𝙽𝚃𝙸 𝚅𝙸𝙴𝚆 𝙾𝙽𝙲𝙴 𝚂𝙰𝚅𝙴 𝙻𝙾𝙲𝙰𝚃𝙸𝙾𝙽⊰━━━", callback_data="pass")],
+            [InlineKeyboardButton(f"𝚂𝚊𝚟𝚎𝚍 𝙼𝚎𝚜𝚜𝚊𝚐𝚎𝚜 {'✅' if save_location == 'saved' else '❌'}", callback_data='set_saved'),
+            InlineKeyboardButton(f"𝙸𝚗-𝙲𝚑𝚊𝚝 {'✅' if save_location == 'chat' else '❌'}", callback_data='set_chat')],
+            [InlineKeyboardButton(f"{auto_reply_text}", callback_data='toggle_auto_reply')],
+            [InlineKeyboardButton("📝 𝙼𝚢 𝙺𝚎𝚢𝚠𝚘𝚛𝚍𝚜", callback_data='words')],
+            [InlineKeyboardButton("🔙 𝙱𝚊𝚌𝚔", callback_data='back')]
     ]
+
     respond_display = {
         'PM': '𝙿𝚛𝚒𝚟𝚊𝚝𝚎 𝙲𝚑𝚊𝚝',
         'GC': '𝙶𝚛𝚘𝚞𝚙𝚜',
@@ -203,6 +208,16 @@ async def start_telethon_client(user_id, context=None):
         Handles the /vv command to download a specific self-destructing media.
         """
         try:
+            user_id = str(event.sender_id)
+            data = load_user_data()
+            if user_id not in data["users"]:
+                data["users"][user_id] = {}
+            if "save_location" not in data["users"][user_id]:
+                data["users"][user_id]["save_location"] = "chat"  
+                save_user_data(data)
+
+            save_location = data["users"][user_id]["save_location"]
+
             reply = await event.message.get_reply_message()
             if not reply or not reply.media:
                 await event.reply("Reply to a message containing self-destructing media to use the /vv command.")
@@ -231,7 +246,12 @@ async def start_telethon_client(user_id, context=None):
                   [Made with ❤️ by FluX𝕏♛]({FURL})
                   """               
                 try:
-                    await event.client.send_file(event.chat_id, download_path, caption=caption, parse_mode='Markdown')
+                    if save_location == "saved":
+                        await event.client.send_file("me", download_path, caption=caption, parse_mode='Markdown')
+                        await event.reply("✅ Media saved to your Saved Messages")
+                    else:
+                        await event.client.send_file(event.chat_id, download_path, caption=caption, parse_mode='Markdown')
+
                 except FloodWaitError as e:
                     logger.warning(f"FloodWaitError: Waiting for {e.seconds} seconds")
                     await asyncio.sleep(e.seconds)
