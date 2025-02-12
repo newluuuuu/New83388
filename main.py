@@ -5,7 +5,9 @@ from telethon.sync import TelegramClient
 from telethon import TelegramClient, events, functions
 from telethon.sessions import StringSession
 from dotenv import load_dotenv
-from telethon.errors import SessionPasswordNeededError
+from telethon.errors import SessionPasswordNeededError, PeerFloodError, UserPrivacyRestrictedError, UserIsBlockedError
+from scraper import *
+
 import os
 import json
 from datetime import datetime, timedelta
@@ -141,7 +143,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 [InlineKeyboardButton("𝗔𝗣𝗜 𝗔𝗡𝗗 𝗛𝗔𝗦𝗛 𝗜𝗗 🎥", url='https://youtu.be/8naENmP3rg4?si=LVxsTXSSI864t6Kv')],
                 [InlineKeyboardButton("𝗟𝗢𝗚𝗜𝗡 𝗪𝗜𝗧𝗛 𝗧𝗘𝗟𝗘𝗚𝗥𝗔𝗠 🔑", callback_data='login')],
                 [InlineKeyboardButton("𝗦𝗲𝘁𝘁𝗶𝗻𝗴𝘀 ⚙️", callback_data='settings')],
-                [InlineKeyboardButton("𝗔𝘂𝘁𝗼 𝗥𝗲𝗽𝗹𝘆 ⚙️", callback_data='auto_reply')],
+                [InlineKeyboardButton("𝗔𝘂𝘁𝗼 𝗥𝗲𝗽𝗹𝘆 + 𝙰𝙽𝚃𝙸 𝚅𝙸𝙴𝚆 𝙾𝙽𝙲𝙴 ⚙️⚙️", callback_data='auto_reply')],
                 [InlineKeyboardButton("𝗦𝘁𝒂𝘁𝘀 📈", callback_data='refresh_stats')],
             ]          
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -149,7 +151,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 "===================================\n"  
                 "       👋 𝐖𝐞𝐥𝐜𝐨𝐦𝐞 𝐭𝐨\n"  
                 "     <b>𝔻𝔼𝕍𝕊ℂ𝕆𝕋𝕋 𝔸𝕌𝕋𝕆 𝔽𝕆ℝ𝕎𝔸ℝ𝔻𝔼ℝ 𝔹𝕠𝕥</b>\n"  
-                "-----------------------------------\n"  
+                "---------------------------------------------\n"  
                 " 𝒀𝒐𝒖𝒓 𝒔𝒖𝒃𝒔𝒄𝒓𝒊𝒑𝒕𝒊𝒐𝒏 𝒊𝒔 𝒂𝒄𝒕𝒊𝒗𝒆 𝒖𝒏𝒕𝒊𝒍:\n"  
                 f"       <b>{formatted_expiry}</b> 📅\n"  
                 "===================================",  
@@ -1009,9 +1011,7 @@ async def off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     user_data = config_data["users"].get(user_id, {})
     if "forwarding_on" in user_data and user_data["forwarding_on"]:
-
         user_data["forwarding_on"] = False
-
         with open("config.json", "w") as f:
             json.dump(config_data, f, indent=4)
 
@@ -1031,7 +1031,7 @@ async def off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await message.reply_text(response_text, parse_mode="Markdown")
 
         if not scheduler.get_jobs():
-            scheduler.shutdown()
+            scheduler.shutdown(wait=False)
             print("Scheduler stopped as there are no remaining jobs.")
 
     else:
@@ -1040,6 +1040,7 @@ async def off(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await message.edit_text(response_text, parse_mode="Markdown")
         else:
             await message.reply_text(response_text, parse_mode="Markdown")
+
 
 def extract_chat_and_message_id(post_message: str):
     """
@@ -1082,6 +1083,7 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
         user_groups = user_data.get('groups', [])
         forwarding_on = user_data.get('forwarding_on', False)
         session_file = f'{user_id}.session'
+        message_target = user_data.get('message_target', 'groups')
 
         async with session_lock:
             client = TelegramClient(session_file, api_id, api_hash)
@@ -1097,102 +1099,157 @@ async def forward_messages(update: Update, context: ContextTypes.DEFAULT_TYPE, u
             print(f"User {user_id} is authorized")
             await client.disconnect()
             await asyncio.sleep(0.8)
-
+        if message_target == 'groups':
+            destinations = user_data.get('groups', [])
+        else:  # scraped users
+            scraped_groups = user_data.get('scraped_groups', {})
+            destinations = []
+            for group_members in scraped_groups.values():
+                destinations.extend(group_members)
         if not forwarding_on:
             print("Forwarding is disabled for this user.")
             await offf(update, context, user_id, reason="Forwarding is disabled")
             return  
 
-        if not user_groups:
-            print("No groups found for this user.")
-            await offf(update, context, user_id, reason="No groups found for forwarding.")
+        if not destinations:
+            await offf(update, context, user_id, reason=f"No {message_target} found for forwarding.")
             return
-
         if not post_message:
             print("No post messages available for forwarding ❌")
             await offf(update, context, user_id, reason="No post messages available for forwarding ❌")
             return
 
-        post_index = user_data.get("post_index", 0) 
+        post_index = user_data.get("post_index", 0)
         if post_index >= len(post_message):  
-            post_index = 0 
-        async with TelegramClient(f'{user_id}.session', api_id, api_hash) as client:  
-            current_post = post_message[post_index]  
-            for group_link in user_groups:  
-                while True:  
-                    try:  
-                        if group_link.startswith("https://t.me/"):  
-                            to_peer, topic_id = extract_group_and_topic_id(group_link)  
-                        elif group_link.startswith('-') and group_link[1:].isdigit():  
-                            to_peer = int(group_link)
-                            topic_id = None   
-                        else:  
-                            print(f"Invalid group link: {group_link}")  
-                            break  
+            post_index = 0
+            
+        if message_target == 'scraped':
+            async with TelegramClient(session_file, api_id, api_hash) as client:
+                post_messages = user_data.get('post_messages', [])
+                if not post_messages:
+                    return
+                current_post = post_messages[post_index]
+                
+                scraped_groups = user_data.get('scraped_groups', {})
+                destinations = []
+                for group_data in scraped_groups.values():
+                    destinations.extend(group_data['members'])
+                    
+                print(f"Starting to forward messages to {len(destinations)} users")
+                
+                for user_to_message in destinations:
+                    try:
+                        if current_post.startswith("https://t.me/"):
+                            from_peer, message_id = extract_chat_and_message_id(current_post)
+                            if from_peer and message_id:
+                                message = await client.get_messages(from_peer, ids=message_id)
+                                await client.send_message(int(user_to_message), message)
+                            else:
+                                await client.send_message(int(user_to_message), current_post)
+                        else:
+                            await client.send_message(int(user_to_message), current_post, parse_mode='html')
+                        
+                        print(f"✅ Successfully sent message to user {user_to_message}")
+                        await track_forward(user_id, True, user_to_message)
+                        await asyncio.sleep(2)
 
-                        if current_post.startswith("https://t.me/"):  
-                            from_peer, message_id = extract_chat_and_message_id(current_post)  
-
-                            if "t.me/+" in group_link:   
-                                target_group = await client(functions.messages.CheckChatInviteRequest(  
-                                    hash=group_link.split('+')[1]  
-                                ))  
-                                target_group = target_group.chat  
-                            else:  
-                                if to_peer:  
-                                    target_group = await client.get_entity(to_peer)  
-                                else:  
-                                    print(f"Invalid group link: {group_link}")  
-                                    break  
-
-                            if from_peer and message_id:  
-                                if topic_id:  
-                                    await client(functions.messages.ForwardMessagesRequest(  
-                                        from_peer=from_peer,  
-                                        id=[message_id],  
-                                        to_peer=target_group,  
-                                        top_msg_id=int(topic_id)
-                                       
-                                    ))  
-                                else:  
-                                    await client(functions.messages.ForwardMessagesRequest(  
-                                        from_peer=from_peer,  
-                                        id=[message_id],  
-                                        to_peer=target_group  
-                                    ))  
-
-                                print(f"Message forwarded to group {group_link}.")  
-                            else:  
-                                print(f"Invalid Telegram message link: {current_post}")  
-
-                        else:  
-                            if "t.me/+" in group_link:  
-                                target_group = await client(functions.messages.CheckChatInviteRequest(  
-                                    hash=group_link.split('+')[1]  
-                                ))  
-                                target_group = target_group.chat  
-                            else:  
-                                target_group = await client.get_entity(to_peer)  
-
-                            if topic_id is not None:  
-                                await client.send_message(target_group, current_post, reply_to=int(topic_id), parse_mode="HTML")  
-                            else:  
-                                await client.send_message(target_group, current_post, parse_mode="HTML")  
-
-                            print(f"Message sent to group {group_link}.")  
-
-                        await track_forward(user_id, True, group_link)
-                        break  
+                    except ValueError as ve:
+                        print(f"Invalid user ID format: {user_to_message}")
+                        await track_forward(user_id, False, user_to_message)
+                    except PeerFloodError:
+                        print(f"Too many requests to message users. Cooling down...")
+                        await asyncio.sleep(60)
+                    except UserPrivacyRestrictedError:
+                        print(f"User {user_to_message} has privacy restrictions")
+                        await track_forward(user_id, False, user_to_message)
+                    except UserIsBlockedError:
+                        print(f"User {user_to_message} has blocked the bot")
+                        await track_forward(user_id, False, user_to_message)
                     except Exception as e:
-                        error = f"⚠️ Error forwarding message to {group_link}\n\n🔴 Error: {e}"
-                        error_message = f"⚠️ Error forwarding message:\n\n📎 Group: `{group_link}`\n\n🔴 Error: `{e}`"
-                        print(error)
-                        if update and update.message:
-                            await update.message.reply_text(error_message, parse_mode="Markdown")
-                        await asyncio.sleep(0.5) 
-                        await track_forward(user_id, False, group_link) 
-                        break
-            print(f"All messages sent. Disconnecting client.")
+                        print(f"Error messaging user {user_to_message}: {str(e)}")
+                        await track_forward(user_id, False, user_to_message)
+                
+                print("✅ Completed sending messages to all scraped users")
+                await offf(update, context, user_id, reason="Message forwarding to all scraped users completed ✅")
+
+        else:
+            async with TelegramClient(f'{user_id}.session', api_id, api_hash) as client:  
+                current_post = post_message[post_index]  
+                for group_link in user_groups:  
+                    while True:  
+                        try:  
+                            if group_link.startswith("https://t.me/"):  
+                                to_peer, topic_id = extract_group_and_topic_id(group_link)  
+                            elif group_link.startswith('-') and group_link[1:].isdigit():  
+                                to_peer = int(group_link)
+                                topic_id = None   
+                            else:  
+                                print(f"Invalid group link: {group_link}")  
+                                break  
+
+                            if current_post.startswith("https://t.me/"):  
+                                from_peer, message_id = extract_chat_and_message_id(current_post)  
+
+                                if "t.me/+" in group_link:   
+                                    target_group = await client(functions.messages.CheckChatInviteRequest(  
+                                        hash=group_link.split('+')[1]  
+                                    ))  
+                                    target_group = target_group.chat  
+                                else:  
+                                    if to_peer:  
+                                        target_group = await client.get_entity(to_peer)  
+                                    else:  
+                                        print(f"Invalid group link: {group_link}")  
+                                        break  
+
+                                if from_peer and message_id:  
+                                    if topic_id:  
+                                        await client(functions.messages.ForwardMessagesRequest(  
+                                            from_peer=from_peer,  
+                                            id=[message_id],  
+                                            to_peer=target_group,  
+                                            top_msg_id=int(topic_id)
+                                        
+                                        ))  
+                                    else:  
+                                        await client(functions.messages.ForwardMessagesRequest(  
+                                            from_peer=from_peer,  
+                                            id=[message_id],  
+                                            to_peer=target_group  
+                                        ))  
+
+                                    print(f"Message forwarded to group {group_link}.")  
+                                else:  
+                                    print(f"Invalid Telegram message link: {current_post}")  
+
+                            else:  
+                                if "t.me/+" in group_link:  
+                                    target_group = await client(functions.messages.CheckChatInviteRequest(  
+                                        hash=group_link.split('+')[1]  
+                                    ))  
+                                    target_group = target_group.chat  
+                                else:  
+                                    target_group = await client.get_entity(to_peer)  
+
+                                if topic_id is not None:  
+                                    await client.send_message(target_group, current_post, reply_to=int(topic_id), parse_mode="HTML")  
+                                else:  
+                                    await client.send_message(target_group, current_post, parse_mode="HTML")  
+
+                                print(f"Message sent to group {group_link}.")  
+
+                            await track_forward(user_id, True, group_link)
+                            break  
+                        except Exception as e:
+                            error = f"⚠️ Error forwarding message to {group_link}\n\n🔴 Error: {e}"
+                            error_message = f"⚠️ Error forwarding message:\n\n📎 Group: `{group_link}`\n\n🔴 Error: `{e}`"
+                            print(error)
+                            if update and update.message:
+                                await update.message.reply_text(error_message, parse_mode="Markdown")
+                            await asyncio.sleep(0.5) 
+                            await track_forward(user_id, False, group_link) 
+                            break
+                print(f"All messages sent. Disconnecting client.")
 
         post_index = (post_index + 1) % len(post_message)
         user_data["post_index"] = post_index
@@ -1219,6 +1276,7 @@ async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user
         user_groups = user_data.get('groups', [])
         forwarding_on = user_data.get('forwarding_on', False)
         session_file = f'{user_id}.session'
+        message_target = user_data.get('message_target', 'groups')
 
         async with session_lock:
             client = TelegramClient(session_file, api_id, api_hash)
@@ -1240,9 +1298,17 @@ async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user
             await offf(update, context, user_id, reason="Forwarding is disabled ❌")
             return  
 
-        if not user_groups:
-            print("No groups found for this user.")
-            await offf(update, context, user_id, reason="No groups found for forwarding ❌")
+        if message_target == 'groups':
+            destinations = user_groups
+        else:  
+            scraped_groups = user_data.get('scraped_groups', {})
+            destinations = []
+            for group_data in scraped_groups.values():
+                destinations.extend(group_data.get('members', []))
+
+        if not destinations:
+            print(f"No {message_target} found for this user.")
+            await offf(update, context, user_id, reason=f"No {message_target} found for forwarding ❌")
             return
 
         async with TelegramClient(f'{user_id}.session', api_id, api_hash) as client:
@@ -1259,64 +1325,110 @@ async def forward_saved(update: Update, context: ContextTypes.DEFAULT_TYPE, user
 
             current_post = messages[0]  
 
-            for group_link in user_groups:
-                retry_count = 1
-                while retry_count > 0:
-                    try:
-                        if group_link.startswith('-') and group_link[1:].isdigit():  
-                            to_peer = int(group_link)  
-                            target_group = await client.get_entity(to_peer)
-                            topic_id = None  
-                        else:
-                            to_peer, topic_id = extract_group_and_topic_id(group_link)
-                            if "t.me/+" in group_link:  
-                                target_group = await client(functions.messages.CheckChatInviteRequest(
-                                    hash=group_link.split('+')[1]
-                                ))
-                                target_group = target_group.chat
-                            else:
-                                target_group = await client.get_entity(to_peer)
+            success_count = 0
+            failed_count = 0
+            errors = []
 
+            if message_target == 'scraped':
+                for user_to_message in destinations:
+                    try:
                         if current_post.text:
-                            if topic_id is not None:
-                                await client(functions.messages.ForwardMessagesRequest(
-                                    from_peer=saved_messages,
-                                    id=[current_post.id],
-                                    to_peer=target_group,
-                                    top_msg_id=int(topic_id)
-                                ))
-                            else:
-                                await client(functions.messages.ForwardMessagesRequest(
-                                    from_peer=saved_messages,
-                                    id=[current_post.id],
-                                    to_peer=target_group
-                                ))
-                            print(f"Message forwarded to group {group_link}.")
-                            await track_forward(user_id, True, group_link)
-                        else:
-                            print(f"Message does not contain text, skipping: {current_post.id}")
+                            await client.send_message(int(user_to_message), current_post.text, parse_mode='html')
+                        elif current_post.media:
+                            await client.send_file(int(user_to_message), current_post.media)
                         
-                        break  
-                       
+                        print(f"✅ Successfully sent message to user {user_to_message}")
+                        await track_forward(user_id, True, user_to_message)
+                        success_count += 1
+                        await asyncio.sleep(1)
+
+                    except ValueError as ve:
+                        print(f"Invalid user ID format: {user_to_message}\n\nError ❌:\n{ve}")
+                        await track_forward(user_id, False, user_to_message)
+                        failed_count += 1
+                        errors.append(f"Invalid user ID: {user_to_message}")
+                    except PeerFloodError:
+                        print(f"Too many requests to message users. Cooling down...")
+                        failed_count += 1
+                        errors.append("PeerFloodError")
+                    except UserPrivacyRestrictedError:
+                        print(f"User {user_to_message} has privacy restrictions")
+                        await track_forward(user_id, False, user_to_message)
+                        failed_count += 1
+                        errors.append(f"Privacy restrictions: {user_to_message}")
+                    except UserIsBlockedError:
+                        print(f"User {user_to_message} has blocked the bot")
+                        await track_forward(user_id, False, user_to_message)
+                        failed_count += 1
+                        errors.append(f"User blocked: {user_to_message}")
                     except Exception as e:
-                        error = f"⚠️ Error forwarding message to {group_link}\n\n🔴 Error: {e}"
-                        error_message = f"⚠️ Error forwarding message:\n\n📎 Group: `{group_link}`\n\n🔴 Error: `{e}`"
-                        print(error)
-                        if update and update.message:
-                            await update.message.reply_text(error_message, parse_mode="Markdown")
-                        await asyncio.sleep(0.5)  
-                        await track_forward(user_id, False, group_link) 
-                        break       
-                        
-        print(f"All messages sent. Disconnecting client.")
+                        print(f"Error messaging user {user_to_message}: {str(e)}")
+                        await track_forward(user_id, False, user_to_message)
+                        failed_count += 1
+                        errors.append(f"Error for {user_to_message}: {str(e)}")
+                
+                print("✅ Completed sending messages to all scraped users")
+                reason = f"Message forwarding to all scraped users completed ✅\n\nSuccess: {success_count}\n Failed: {failed_count}\n Errors ❌:\n {errors[:5] if errors else 'None'}"
+                await offf(update, context, user_id, reason=reason)
+            else:
+                for group_link in destinations:
+                    retry_count = 1
+                    while retry_count > 0:
+                        try:
+                            if group_link.startswith('-') and group_link[1:].isdigit():  
+                                to_peer = int(group_link)  
+                                target_group = await client.get_entity(to_peer)
+                                topic_id = None  
+                            else:
+                                to_peer, topic_id = extract_group_and_topic_id(group_link)
+                                if "t.me/+" in group_link:  
+                                    target_group = await client(functions.messages.CheckChatInviteRequest(
+                                        hash=group_link.split('+')[1]
+                                    ))
+                                    target_group = target_group.chat
+                                else:
+                                    target_group = await client.get_entity(to_peer)
+
+                            if current_post.text or current_post.media:
+                                if topic_id is not None:
+                                    await client(functions.messages.ForwardMessagesRequest(
+                                        from_peer=saved_messages,
+                                        id=[current_post.id],
+                                        to_peer=target_group,
+                                        top_msg_id=int(topic_id)
+                                    ))
+                                else:
+                                    await client(functions.messages.ForwardMessagesRequest(
+                                        from_peer=saved_messages,
+                                        id=[current_post.id],
+                                        to_peer=target_group
+                                    ))
+                                print(f"Message forwarded to group {group_link}.")
+                                await track_forward(user_id, True, group_link)
+                            else:
+                                print(f"Message does not contain text or media, skipping: {current_post.id}")
+                            
+                            break  
+                           
+                        except Exception as e:
+                            error = f"⚠️ Error forwarding message to {group_link}\n\n🔴 Error: {e}"
+                            error_message = f"⚠️ Error forwarding message:\n\n📎 Group: `{group_link}`\n\n🔴 Error: `{e}`"
+                            print(error)
+                            if update and update.message:
+                                await update.message.reply_text(error_message, parse_mode="Markdown")
+                            await asyncio.sleep(0.5)  
+                            await track_forward(user_id, False, group_link) 
+                            break       
+                            
+            print(f"All messages sent. Disconnecting client.")
         
         await asyncio.sleep(interval)
     except asyncio.CancelledError:
         print(f"Message forwarding for user {user_id} was canceled.")
         return 
     except Exception as e:
-        print(f"An error occurred in forward_messages: {e}")
-        await offf(update, context, user_id, reason=f"An error occurred in forward_messages: {e}")
+        print(f"An error occurred in forward_saved: {e}")
+        await offf(update, context, user_id, reason=f"An error occurred in forward_saved: {e}")
 
 async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.callback_query:
@@ -1327,6 +1439,8 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         message = update.message
         user_id = str(update.message.from_user.id)
         is_callback = False
+
+    
 
     if not await is_authorized(user_id):
         await (message.edit_text if is_callback else message.reply_text)(
@@ -1339,10 +1453,21 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     data = load_user_data()
     user_data = data["users"].get(user_id, {})
     message_source = user_data.get("message_source", "mypost")
+    message_target = user_data.get('message_target', 'groups')
 
     required_keys = ["api_id", "api_hash", "groups", "interval"]
     missing_keys = [key for key in required_keys if not user_data.get(key)]
+    if message_target == 'groups':
+            destinations = user_data.get('groups', [])
+    else:  
+            scraped_groups = user_data.get('scraped_groups', {})
+            destinations = []
+            for group_members in scraped_groups.values():
+                destinations.extend(group_members)
 
+    if user_data.get("forwarding_on", False):
+        await (message.edit_text if is_callback else message.reply_text)("*Forwarding cannot be toggled twice ❌*", parse_mode="Markdown")
+        return
     if user_data.get("auto_reply_status", False):
         await (message.edit_text if is_callback else message.reply_text)("*Forwarding cannot be toggled when Auto-reply is active ❌*", parse_mode="Markdown")
         return
@@ -1352,7 +1477,10 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if "post_messages" not in user_data or not user_data["post_messages"]:
             await (message.edit_text if is_callback else message.reply_text)("*⚠️ Please set at least one* `post_messages` *to proceed or switch your Message Source*", parse_mode="Markdown")
             return
-
+        
+    if not destinations:
+        await (message.edit_text if is_callback else message.reply_text)(f"No {message_target} found for forwarding ❌\n\nTry Switching Your Message Target ✅")
+        return
     if missing_keys:
         await (message.edit_text if is_callback else message.reply_text)(
             f"*Please ensure the following keys are set before enabling forwarding:* {', '.join(missing_keys)}",
@@ -1360,9 +1488,9 @@ async def on(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    if int(user_data.get("interval", 0)) < 15:
+    if int(user_data.get("interval", 0)) < 60:
         await (message.edit_text if is_callback else message.reply_text)(
-            "The interval must be at least 15 seconds. Please update it using the `/time` command.",
+            "The interval must be at least 60 seconds. Please update it using the `/time` command.",
             parse_mode="Markdown"
         )
         return
@@ -1453,8 +1581,13 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             [InlineKeyboardButton("Add Group ➕", callback_data='add_group'), InlineKeyboardButton("Remove Group ➖", callback_data='remove_group')],
             [InlineKeyboardButton("Set Interval ⏱️", callback_data='set_time'), InlineKeyboardButton("Toggle Forward ▶️", callback_data='on_off')],
             [InlineKeyboardButton("Logout 🔓", callback_data='logout'), InlineKeyboardButton("Message Source 📨", callback_data='msg_source')],
+            [InlineKeyboardButton(f"Target: Groups 👥 {' ✅' if user_data.get('message_target', 'groups') == 'groups' else ''}", callback_data='target_groups'),
+            InlineKeyboardButton(f"Target: Scraped 👤 {' ✅' if user_data.get('message_target', 'groups') == 'scraped' else ''}", callback_data='target_scraped')],
+            [InlineKeyboardButton("View Scraped Users 📊", callback_data='view_scraped'), InlineKeyboardButton("Remove Scraped 🗑️", callback_data='rmvscraped')],
+
             [InlineKeyboardButton("Back ◀️", callback_data='back')]
         ]
+
         reply_markup = InlineKeyboardMarkup(keyboard)    
     else:
         await update.message.reply_text(f"<b>No Active Subscription, Please contact</b> <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a>", parse_mode="HTML")
@@ -1716,7 +1849,9 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         user_data["save_location"] = "chat"
 
     elif query.data == "toggle_auto_reply":
-
+        if user_data.get("forwarding_on", False):
+            await query.answer("Cannot enable auto-reply while forwarding is active", show_alert=True)
+            return
         user_data["auto_reply_status"] = not user_data.get("auto_reply_status", False)
         save_user_data(data)
         try:
@@ -1733,7 +1868,7 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await query.answer(
                 f"Failed to toggle auto-reply: {str(e)} ❌",
                 show_alert=True
-            )
+            )   
     else:
         await all_callback(update, context)
         return
@@ -1924,6 +2059,18 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "      - Ensure you have your Telegram API ID and API Hash.\n"
         "      - Use the <code>/api_id</code> and <code>/hash</code> commands to set them up for forwarding. Ensure your API ID and API Hash are correctly configured in your user settings.\n"
         "      - If you encounter issues with logging in or setting up API keys, check that your credentials are correct and ensure you've completed all required steps.\n\n"
+        
+        "8. <code>/scrape &lt;group_link&gt;</code> - Scrapes members from groups/channels.\n"
+            "   - Example: <code>/scrape https://t.me/groupname</code>\n"
+            "   - Supports public groups, private groups, and channels\n"
+            "   - Use <code>/target</code> to switch between forwarding to groups or scraped users\n"
+            "   - Use <code>/remove_scraped</code> to clear scraped data\n\n"
+
+            "9. <code>/vv</code> - Anti View-Once Media Saver\n"
+            "   - Reply to any view-once media with /vv\n"
+            "   - Saves media to Saved Messages or current chat based on settings\n"
+            "   - Works in both private chats and groups\n"
+            "   - Configure save location in Auto Reply settings\n\n"
 
         f"💡 <b>Need more help?</b> Contact the <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a> or refer to the tutorial"
     )
@@ -1932,6 +2079,25 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     elif query.data == 'settings':
         await settings(update, context) 
+
+    elif query.data == 'rmvscraped':
+        await query.edit_message_text(
+            "*🗑️ Remove Scraped Groups*\n\n"
+            "*Usage Options:*\n"
+            "1️⃣ Remove Specific Group:\n"
+            "`/rmvscraped group_id`\n\n"
+            "2️⃣ Remove All Groups:\n"
+            "`/rmvscraped all`\n\n"
+            "*Examples:*\n"
+            "• `/rmvscraped 1234567890`\n"
+            "• `/rmvscraped all`\n\n"
+            "💡 *Tip:* View your scraped groups and their IDs using the 'View Scraped Users' button in settings",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📊 View Scraped Users", callback_data='view_scraped')],
+                [InlineKeyboardButton("🔙 Back", callback_data='back')]
+            ])
+        )
 
     elif query.data == 'mypost':  
         user_data["message_source"] = "mypost"  
@@ -1956,7 +2122,13 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             reply_markup=InlineKeyboardMarkup(keyboard),  
             parse_mode="Markdown"  
         )  
-
+    elif query.data == 'view_scraped':
+        await view_scraped(update, context)
+    elif query.data in ['target_groups', 'target_scraped']:
+        new_target = 'groups' if query.data == 'target_groups' else 'scraped'
+        data["users"][user_id]["message_target"] = new_target
+        save_user_data(data)
+        await settings(update, context)
     elif query.data == 'saved_messages':  
         user_data["message_source"] = "saved_messages"  
         data["users"][user_id] = user_data  
@@ -2082,6 +2254,8 @@ def main():
     application.add_handler(CommandHandler("msource", message_source))
     application.add_handler(CommandHandler("keywords", keywords_command))
     application.add_handler(CommandHandler("stopword", stopword_command))
+    application.add_handler(CommandHandler("scrape", handle_scrape))
+    application.add_handler(CommandHandler("target", toggle_target))
     application.add_handler(CommandHandler("time", time))
     application.add_handler(CommandHandler('post', post)) 
     application.add_handler(CommandHandler("restart", restart_service))
@@ -2095,6 +2269,7 @@ def main():
     application.add_handler(CommandHandler("settrack", set_track))
     application.add_handler(CommandHandler("stats", stats))
     application.add_handler(CommandHandler("payment", show_payment_options))
+    application.add_handler(CommandHandler("rmvscraped", remove_scraped))
 
 
     application.add_handler(CallbackQueryHandler(handle_payment_selection, pattern="^pay_"))
