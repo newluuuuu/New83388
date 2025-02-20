@@ -1584,6 +1584,7 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             [InlineKeyboardButton(f"Target: Groups 👥 {' ✅' if user_data.get('message_target', 'groups') == 'groups' else ''}", callback_data='target_groups'),
             InlineKeyboardButton(f"Target: Scraped 👤 {' ✅' if user_data.get('message_target', 'groups') == 'scraped' else ''}", callback_data='target_scraped')],
             [InlineKeyboardButton("View Scraped Users 📊", callback_data='view_scraped'), InlineKeyboardButton("Remove Scraped 🗑️", callback_data='rmvscraped')],
+            [InlineKeyboardButton("Add Users to Group 👥", callback_data='add_to_gc')],
 
             [InlineKeyboardButton("Back ◀️", callback_data='back')]
         ]
@@ -1989,6 +1990,22 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
     elif query.data == "del_keyword":
         await query.edit_message_text("Use `/stopword <keyword>` to delete a set word", parse_mode="Markdown", reply_markup=back_button())
+
+    elif query.data == 'add_to_gc':
+        await query.edit_message_text(
+            "*📥 Add Scraped Users to Group*\n\n"
+            "*Usage:*\n"
+            "`/addtogc <scraped_group_id> <target_group_link>`\n\n"
+            "*Example:*\n"
+            "`/addtogc -100123456789 https://t.me/targetgroup`\n\n"
+            "*Note:*\n"
+            "• Only users with usernames can be added\n"
+            "• You must be admin in target group\n"
+            "• View scraped group IDs using 'View Scraped Users' button",
+            parse_mode="Markdown",
+            reply_markup=back_button()
+        )
+
     elif query.data == 'logout':
         await logout(update, context)
     elif query.data == "login_kbd":
@@ -2071,6 +2088,13 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             "   - Saves media to Saved Messages or current chat based on settings\n"
             "   - Works in both private chats and groups\n"
             "   - Configure save location in Auto Reply settings\n\n"
+            
+            "10. <code>/addtogc &lt;scraped_group_id&gt; &lt;target_group_link&gt;</code> - Add Scraped Users to Group\n"
+            "   - Example: <code>/addtogc -100123456789 https://t.me/targetgroup</code>\n"
+            "   - Adds users from scraped group to target group\n"
+            "   - Shows success/failure statistics after completion\n"
+            "   - Only users with usernames will be added\n\n"
+
 
         f"💡 <b>Need more help?</b> Contact the <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a> or refer to the tutorial"
     )
@@ -2270,6 +2294,8 @@ def main():
     application.add_handler(CommandHandler("stats", stats))
     application.add_handler(CommandHandler("payment", show_payment_options))
     application.add_handler(CommandHandler("rmvscraped", remove_scraped))
+    application.add_handler(CommandHandler("addtogc", add_to_group))
+
 
 
     application.add_handler(CallbackQueryHandler(handle_payment_selection, pattern="^pay_"))
@@ -2303,3 +2329,4 @@ if __name__ == '__main__':
     server_thread = threading.Thread(target=run_web_server)
     server_thread.start()
     main()
+    
