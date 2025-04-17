@@ -125,7 +125,10 @@ async def keyword_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         f"🌐 <b>𝚁𝚎𝚜𝚙𝚘𝚗𝚍 𝙸𝚗:</b> <code>{respond_display}</code>\n"
         "━━━━━━━━━━━━━━━━━━━\n"
         "📸 <b>𝙰𝚗𝚝𝚒 𝚅𝚒𝚎𝚠 𝙾𝚗𝚌𝚎:</b>\n"
-        "<code>𝚁𝚎𝚙𝚕𝚢 𝚝𝚘 𝚊𝚗𝚢 𝚟𝚒𝚎𝚠 𝚘𝚗𝚌𝚎 𝚖𝚎𝚍𝚒𝚊 𝚠𝚒𝚝𝚑 /𝚟𝚟</code>",
+        "<code>𝚁𝚎𝚙𝚕𝚢 𝚝𝚘 𝚊𝚗𝚢 𝚟𝚒𝚎𝚠 𝚘𝚗𝚌𝚎 𝚖𝚎𝚍𝚒𝚊 𝚠𝚒𝚝𝚑 /𝚟𝚟</code>\n\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "🔔 <b>𝚃𝚊𝚐 𝙰𝚕𝚕 𝙼𝚎𝚖𝚋𝚎𝚛𝚜:</b>\n"
+        "<code>𝚄𝚜𝚎 /𝚝𝚊𝚐 [𝚖𝚎𝚜𝚜𝚊𝚐𝚎] 𝚝𝚘 𝚝𝚊𝚐 𝚊𝚕𝚕 𝚐𝚛𝚘𝚞𝚙 𝚖𝚎𝚖𝚋𝚎𝚛𝚜 𝚊𝚝 𝚘𝚗𝚌𝚎</code>",
         reply_markup=reply_markup,
         parse_mode="HTML"
     )
@@ -318,7 +321,7 @@ async def start_telethon_client(user_id, context=None):
             
             for user in all_participants:
                 try:
-                    mentions += f"[​](tg://user?id={user.id})"
+                    mentions += f'<a href="tg://user?id={user.id}">​</a>'
                     successful_tags += 1
                 except Exception as e:
                     print(f"Couldn't tag user {user.id}: {e}")
@@ -330,7 +333,7 @@ async def start_telethon_client(user_id, context=None):
                 sent_message = await client.send_message(
                     chat,
                     mentions + message_text,
-                    parse_mode='html'  # Changed from 'md' to 'html' to support HTML formatting
+                    parse_mode='html' 
                 )
                 
                 # Final report
