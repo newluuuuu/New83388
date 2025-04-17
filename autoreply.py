@@ -5,6 +5,7 @@ from telethon import TelegramClient, events
 from telethon.tl.types import User, Chat, MessageMediaPhoto, MessageMediaDocument
 from telethon.errors.rpcerrorlist import AuthKeyUnregisteredError
 from telethon.errors import FloodWaitError
+from telethon.tl.types import MessageEntityMentionName
 import re
 import os
 import json
@@ -266,6 +267,96 @@ async def start_telethon_client(user_id, context=None):
             logger.exception(f"Error handling /vv command: {e}")
             await event.reply("An error occurred while processing the /vv command.")
 
+    @client.on(events.NewMessage(pattern='/tag (.+)'))
+    async def handle_tag_command(event):
+        try:
+            sender = await event.get_sender()
+            chat = await event.get_input_chat()
+            message_text = event.pattern_match.group(1)
+            
+            # React to the command message
+            try:
+                from telethon.tl.functions.messages import SendReactionRequest
+                from telethon.tl.types import ReactionEmoji
+                
+                reaction = ReactionEmoji(emoticon='👍')
+                await client(SendReactionRequest(
+                    peer=chat,
+                    msg_id=event.message.id,
+                    reaction=[reaction]
+                ))
+            except Exception as react_error:
+                print(f"Couldn't add reaction: {react_error}")
+            
+            # Inform the user that tagging has started
+            await client.send_message(sender, "Starting to tag all members at once.")
+            
+            # Fetch all participants (excluding bots and the sender)
+            all_participants = []
+            async for participant in client.iter_participants(chat):
+                if not participant.bot and participant.id != sender.id:
+                    all_participants.append(participant)
+            
+            if not all_participants:
+                await client.send_message(sender, "No participants found to tag.")
+                return
+            
+            total_members = len(all_participants)
+            await client.send_message(sender, f"Found {total_members} members to tag.")
+            
+            # Create mentions for all users at once
+            mentions = ""
+            successful_tags = 0
+            skipped_tags = 0
+            
+            for user in all_participants:
+                try:
+                    mentions += f"[​](tg://user?id={user.id})"
+                    successful_tags += 1
+                except Exception as e:
+                    print(f"Couldn't tag user {user.id}: {e}")
+                    skipped_tags += 1
+                    continue
+            
+            # Send message with all mentions
+            try:
+                sent_message = await client.send_message(
+                    chat,
+                    mentions + message_text,
+                    parse_mode='md'
+                )
+                
+                # Final report
+                if sent_message:
+                    await client.send_message(
+                        sender,
+                        f"Tagging complete!\n"
+                        f"Total members: {total_members}\n"
+                        f"Successfully tagged: {successful_tags}\n"
+                        f"Skipped: {skipped_tags}"
+                    )
+                else:
+                    await client.send_message(
+                        sender,
+                        f"Failed to send the tag message."
+                    )
+            
+            except Exception as e:
+                print(f"Error sending tag message: {e}")
+                await client.send_message(
+                    sender,
+                    f"Error sending tag message: {e}"
+                )
+            
+            await asyncio.sleep(4)
+            await event.delete()
+            
+        except Exception as e:
+            print(f"Error in tag command: {e}")
+            sender = await event.get_sender()
+            await client.send_message(sender, f"Failed to tag members: {str(e)}")
+
+
     @client.on(events.NewMessage)
     async def handler(event):
         try:
@@ -273,8 +364,6 @@ async def start_telethon_client(user_id, context=None):
             chat_id = chat.id
             chat_name = chat.title if hasattr(chat, 'title') else chat.username or chat_id
             message_text = event.message.message
-
-            print(f"📥 Received message in {chat_name}")
 
             if message_text.startswith('/vv') and event.message.is_reply:
                 await handle_vv_command(event)

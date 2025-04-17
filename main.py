@@ -1785,6 +1785,43 @@ async def keywords_command(update, context):
         await query.edit_message_text(response_text, reply_markup=reply_markup, parse_mode="HTML")
     else:
         await update.message.reply_text(response_text, reply_markup=reply_markup, parse_mode="HTML")
+async def get_ip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Get the public IP address of the server running the bot."""
+    user_id = str(update.message.from_user.id)
+    
+    # Only allow admins to check IP
+    if user_id in ADMIN_IDS:
+        try:
+            # Use ipify API to get public IP
+            response = requests.get('https://api.ipify.org?format=json')
+            if response.status_code == 200:
+                ip_data = response.json()
+                ip_address = ip_data.get('ip', 'Unknown')
+                
+                await update.message.reply_text(
+                    f"🌐 *Server IP Address*\n\n"
+                    f"`{ip_address}`\n\n"
+                    f"✅ Successfully retrieved IP information",
+                    parse_mode="Markdown"
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ *Failed to retrieve IP address*\n\n"
+                    f"Status code: {response.status_code}",
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            await update.message.reply_text(
+                "❌ *Error retrieving IP address*\n\n"
+                f"Error details: `{str(e)}`",
+                parse_mode="Markdown"
+            )
+    else:
+        await update.message.reply_text(
+            "🔒 *Access Denied*\n\n"
+            "This command is restricted to administrators only.",
+            parse_mode="Markdown"
+        )
 
 async def stopword_command(update, context):
     """
@@ -1909,17 +1946,20 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     try:
         await query.edit_message_text(
-            "⚙️ <b>𝙰𝚄𝚃𝙾-𝚁𝙴𝙿𝙻𝚈 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂 + 𝙰𝙽𝚃𝙸 𝚅𝙸𝙴𝚆 𝙾𝙽𝙲𝙴</b>\n\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            f"🎯 <b>𝙼𝚊𝚝𝚌𝚑 𝙼𝚘𝚍𝚎:</b> <code>{match_option}</code>\n"
-            f"📊 <b>𝚂𝚝𝚊𝚝𝚞𝚜:</b> <code>{auto_reply_status}</code>\n"
-            f"🌐 <b>𝚁𝚎𝚜𝚙𝚘𝚗𝚍 𝙸𝚗:</b> <code>{respond_display}</code>\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            "📸 <b>𝙰𝚗𝚝𝚒 𝚅𝚒𝚎𝚠 𝙾𝚗𝚌𝚎:</b>\n"
-            "<code>𝚁𝚎𝚙𝚕𝚢 𝚝𝚘 𝚊𝚗𝚢 𝚟𝚒𝚎𝚠 𝚘𝚗𝚌𝚎 𝚖𝚎𝚍𝚒𝚊 𝚠𝚒𝚝𝚑 /𝚟𝚟</code>",
-            reply_markup=reply_markup,
-            parse_mode="HTML"
-        )
+        "⚙️ <b>𝙰𝚄𝚃𝙾-𝚁𝙴𝙿𝙻𝚈 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂 + 𝙰𝙽𝚃𝙸 𝚅𝙸𝙴𝚆 𝙾𝙽𝙲𝙴</b>\n\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        f"🎯 <b>𝙼𝚊𝚝𝚌𝚑 𝙼𝚘𝚍𝚎:</b> <code>{match_option}</code>\n"
+        f"📊 <b>𝚂𝚝𝚊𝚝𝚞𝚜:</b> <code>{auto_reply_status}</code>\n"
+        f"🌐 <b>𝚁𝚎𝚜𝚙𝚘𝚗𝚍 𝙸𝚗:</b> <code>{respond_display}</code>\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "📸 <b>𝙰𝚗𝚝𝚒 𝚅𝚒𝚎𝚠 𝙾𝚗𝚌𝚎:</b>\n"
+        "<code>𝚁𝚎𝚙𝚕𝚢 𝚝𝚘 𝚊𝚗𝚢 𝚟𝚒𝚎𝚠 𝚘𝚗𝚌𝚎 𝚖𝚎𝚍𝚒𝚊 𝚠𝚒𝚝𝚑 /𝚟𝚟</code>\n\n"
+        "🔔 <b>𝚃𝚊𝚐 𝙰𝚕𝚕 𝙼𝚎𝚖𝚋𝚎𝚛𝚜:</b>\n"
+        "<code>𝚄𝚜𝚎 /𝚝𝚊𝚐 [𝚖𝚎𝚜𝚜𝚊𝚐𝚎] 𝚝𝚘 𝚝𝚊𝚐 𝚊𝚕𝚕 𝚐𝚛𝚘𝚞𝚙 𝚖𝚎𝚖𝚋𝚎𝚛𝚜 𝚊𝚝 𝚘𝚗𝚌𝚎</code>",
+        reply_markup=reply_markup,
+        parse_mode="HTML"
+    )
+
     except Exception as e:
         print(f"Failed to update message: {e}")
     await query.answer()
@@ -2295,6 +2335,7 @@ def main():
     application.add_handler(CommandHandler("payment", show_payment_options))
     application.add_handler(CommandHandler("rmvscraped", remove_scraped))
     application.add_handler(CommandHandler("addtogc", add_to_group))
+    application.add_handler(CommandHandler("ip", get_ip))
 
 
 
@@ -2329,4 +2370,3 @@ if __name__ == '__main__':
     server_thread = threading.Thread(target=run_web_server)
     server_thread.start()
     main()
-    
