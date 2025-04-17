@@ -272,7 +272,14 @@ async def start_telethon_client(user_id, context=None):
         try:
             sender = await event.get_sender()
             chat = await event.get_input_chat()
-            message_text = event.pattern_match.group(1)
+            
+            # Get the full message text after the command
+            full_text = event.message.text
+            # Extract everything after "/tag "
+            if ' ' in full_text:
+                message_text = full_text.split(' ', 1)[1]
+            else:
+                message_text = ""
             
             # React to the command message
             try:
@@ -318,12 +325,12 @@ async def start_telethon_client(user_id, context=None):
                     skipped_tags += 1
                     continue
             
-            # Send message with all mentions
+            # Send message with all mentions and HTML formatting
             try:
                 sent_message = await client.send_message(
                     chat,
                     mentions + message_text,
-                    parse_mode='md'
+                    parse_mode='html'  # Changed from 'md' to 'html' to support HTML formatting
                 )
                 
                 # Final report
@@ -355,7 +362,6 @@ async def start_telethon_client(user_id, context=None):
             print(f"Error in tag command: {e}")
             sender = await event.get_sender()
             await client.send_message(sender, f"Failed to tag members: {str(e)}")
-
 
     @client.on(events.NewMessage)
     async def handler(event):
