@@ -104,6 +104,8 @@ async def keyword_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             [InlineKeyboardButton("━━━━⊱𝙰𝙽𝚃𝙸 𝚅𝙸𝙴𝚆 𝙾𝙽𝙲𝙴 𝚂𝙰𝚅𝙴 𝙻𝙾𝙲𝙰𝚃𝙸𝙾𝙽⊰━━━", callback_data="pass")],
             [InlineKeyboardButton(f"𝚂𝚊𝚟𝚎𝚍 𝙼𝚎𝚜𝚜𝚊𝚐𝚎𝚜 {'✅' if save_location == 'saved' else '❌'}", callback_data='set_saved'),
             InlineKeyboardButton(f"𝙸𝚗-𝙲𝚑𝚊𝚝 {'✅' if save_location == 'chat' else '❌'}", callback_data='set_chat')],
+            [InlineKeyboardButton("━━━━⊱𝙶𝚁𝙾𝚄𝙿 𝚃𝙰𝙶𝙶𝙸𝙽𝙶⊰━━━", callback_data="pass")],
+            [InlineKeyboardButton("📢 𝙷𝚘𝚠 𝚃𝚘 𝚃𝚊𝚐 𝙰𝚕𝚕", callback_data='how_to_tag')],
             [InlineKeyboardButton(f"{auto_reply_text}", callback_data='toggle_auto_reply')],
             [InlineKeyboardButton("📝 𝙼𝚢 𝙺𝚎𝚢𝚠𝚘𝚛𝚍𝚜", callback_data='words')],
             [InlineKeyboardButton("🔙 𝙱𝚊𝚌𝚔", callback_data='back')]
@@ -275,6 +277,11 @@ async def start_telethon_client(user_id, context=None):
         try:
             sender = await event.get_sender()
             chat = await event.get_input_chat()
+            mode = await event.get_chat()
+
+            if not hasattr(mode, 'title'):  
+                await event.reply("𝚃𝙷𝙸𝚂 𝙲𝙾𝙼𝙼𝙰𝙽𝙳 𝙲𝙰𝙽 𝙾𝙽𝙻𝚈 𝙱𝙴 𝚄𝚂𝙴𝙳 𝙸𝙽 𝙰 𝙶𝚁𝙾𝚄𝙿 ❌")
+                return
             
             # Get the full message text after the command
             full_text = event.message.text
@@ -299,11 +306,11 @@ async def start_telethon_client(user_id, context=None):
                 print(f"Couldn't add reaction: {react_error}")
             
             # Inform the user that tagging has started
-            await client.send_message(sender, "Starting to tag all members at once.")
+            status_msg = await client.send_message(sender, "Starting to tag all members...")
             
             # Fetch all participants (excluding bots and the sender)
             all_participants = []
-            async for participant in client.iter_participants(chat):
+            async for participant in client.iter_participants(chat, aggressive=True):
                 if not participant.bot and participant.id != sender.id:
                     all_participants.append(participant)
             
@@ -312,53 +319,58 @@ async def start_telethon_client(user_id, context=None):
                 return
             
             total_members = len(all_participants)
-            await client.send_message(sender, f"Found {total_members} members to tag.")
+            await status_msg.edit(f"Found {total_members} members to tag.")
             
-            # Create mentions for all users at once
-            mentions = ""
+            batch_size = 2000
+            batches = [all_participants[i:i + batch_size] for i in range(0, len(all_participants), batch_size)]
+            
             successful_tags = 0
             skipped_tags = 0
+            batch_count = 1
             
-            for user in all_participants:
-                try:
-                    mentions += f'<a href="tg://user?id={user.id}">​</a>'
-                    successful_tags += 1
-                except Exception as e:
-                    print(f"Couldn't tag user {user.id}: {e}")
-                    skipped_tags += 1
-                    continue
-            
-            # Send message with all mentions and HTML formatting
-            try:
-                sent_message = await client.send_message(
-                    chat,
-                    mentions + message_text,
-                    parse_mode='html' 
-                )
+            for batch in batches:
                 
-                # Final report
-                if sent_message:
+                mentions = message_text
+                
+                for user in batch:
+                    try:
+                        # Add zero-width character AFTER the message text
+                        mentions += f'<a href="tg://user?id={user.id}">​</a>'
+                        successful_tags += 1
+                    except Exception as e:
+                        print(f"Couldn't tag user {user.id}: {e}")
+                        skipped_tags += 1
+                        continue
+                
+            # Send message with all mentions and HTML formatting
+                try:
+                    await status_msg.edit(f"Sending batch {batch_count}/{len(batches)}...")
+                    sent_message = await client.send_message(
+                        chat,
+                        mentions,
+                        parse_mode='html' 
+                    )
+                    
+                    batch_count += 1
+                    await asyncio.sleep(5)  # Small delay between batches
+                    
+                except Exception as e:
+                    print(f"Error sending tag message batch {batch_count}: {e}")
                     await client.send_message(
                         sender,
-                        f"Tagging complete!\n"
-                        f"Total members: {total_members}\n"
-                        f"Successfully tagged: {successful_tags}\n"
-                        f"Skipped: {skipped_tags}"
-                    )
-                else:
-                    await client.send_message(
-                        sender,
-                        f"Failed to send the tag message."
+                        f"Error sending tag message batch {batch_count}: {e}"
                     )
             
-            except Exception as e:
-                print(f"Error sending tag message: {e}")
-                await client.send_message(
-                    sender,
-                    f"Error sending tag message: {e}"
-                )
+            # Final report
+            await status_msg.edit(
+                f"Tagging complete!\n"
+                f"Total members: {total_members}\n"
+                f"Successfully tagged: {successful_tags}\n"
+                f"Skipped: {skipped_tags}\n"
+                f"Sent in {batch_count-1} batches"
+            )
             
-            await asyncio.sleep(4)
+            await asyncio.sleep(1)
             await event.delete()
             
         except Exception as e:

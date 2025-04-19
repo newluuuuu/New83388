@@ -1926,15 +1926,18 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         [InlineKeyboardButton(f"𝙲𝚊𝚜𝚎 𝙸𝚗𝚜𝚎𝚗𝚜𝚒𝚝𝚒𝚟𝚎 {'✅' if match_option == 'case_insensitive' else '❌'}", callback_data='set_case_insensitive')],
         [InlineKeyboardButton("━━━━⊱𝚁𝙴𝚂𝙿𝙾𝙽𝚂𝙴 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂⊰━━━", callback_data="pass")],
         [InlineKeyboardButton(f"𝙿𝙼 {'✅' if responder_option == 'PM' else '❌'}", callback_data='set_pm'),
-         InlineKeyboardButton(f"𝙶𝙲 {'✅' if responder_option == 'GC' else '❌'}", callback_data='set_gc'),
-         InlineKeyboardButton(f"𝙰𝚕𝚕 {'✅' if responder_option == 'All' else '❌'}", callback_data='set_all')],
+        InlineKeyboardButton(f"𝙶𝙲 {'✅' if responder_option == 'GC' else '❌'}", callback_data='set_gc'),
+        InlineKeyboardButton(f"𝙰𝚕𝚕 {'✅' if responder_option == 'All' else '❌'}", callback_data='set_all')],
         [InlineKeyboardButton("━━━━⊱𝙰𝙽𝚃𝙸 𝚅𝙸𝙴𝚆 𝙾𝙽𝙲𝙴 𝚂𝙰𝚅𝙴 𝙻𝙾𝙲𝙰𝚃𝙸𝙾𝙽⊰━━━", callback_data="pass")],
         [InlineKeyboardButton(f"𝚂𝚊𝚟𝚎𝚍 𝙼𝚎𝚜𝚜𝚊𝚐𝚎𝚜 {'✅' if save_location == 'saved' else '❌'}", callback_data='set_saved'),
-         InlineKeyboardButton(f"𝙸𝚗-𝙲𝚑𝚊𝚝 {'✅' if save_location == 'chat' else '❌'}", callback_data='set_chat')],
+        InlineKeyboardButton(f"𝙸𝚗-𝙲𝚑𝚊𝚝 {'✅' if save_location == 'chat' else '❌'}", callback_data='set_chat')],
+        [InlineKeyboardButton("━━━━⊱𝙶𝚁𝙾𝚄𝙿 𝚃𝙰𝙶𝙶𝙸𝙽𝙶⊰━━━", callback_data="pass")],
+        [InlineKeyboardButton("📢 𝙷𝚘𝚠 𝚃𝚘 𝚃𝚊𝚐 𝙰𝚕𝚕", callback_data='how_to_tag')],
         [InlineKeyboardButton(f"{auto_reply_text}", callback_data='toggle_auto_reply')],
         [InlineKeyboardButton("📝 𝙼𝚢 𝙺𝚎𝚢𝚠𝚘𝚛𝚍𝚜", callback_data='words')],
         [InlineKeyboardButton("🔙 𝙱𝚊𝚌𝚔", callback_data='back')]
     ]
+
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -2014,6 +2017,38 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await on(update, context)
     elif query.data == 'back':
         await back_to_menu(update, context)
+
+    elif query.data == 'how_to_tag':
+        keyboard = [[InlineKeyboardButton("🔙 𝙱𝚊𝚌𝚔", callback_data='auto_reply')]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+           "📢 <b>𝙷𝙾𝚆 𝚃𝙾 𝚃𝙰𝙶 𝙰𝙻𝙻 𝙶𝚁𝙾𝚄𝙿 𝙼𝙴𝙼𝙱𝙴𝚁𝚂</b>\n\n"
+            "𝚃𝚑𝚎 𝚝𝚊𝚐 𝚊𝚕𝚕 𝚏𝚎𝚊𝚝𝚞𝚛𝚎 𝚊𝚕𝚕𝚘𝚠𝚜 𝚢𝚘𝚞 𝚝𝚘 𝚖𝚎𝚗𝚝𝚒𝚘𝚗 𝚊𝚕𝚕 𝚖𝚎𝚖𝚋𝚎𝚛𝚜 𝚒𝚗 𝚊 𝚐𝚛𝚘𝚞𝚙 𝚊𝚝 𝚘𝚗𝚌𝚎.\n\n"
+            "<b>𝙷𝚘𝚠 𝚝𝚘 𝚞𝚜𝚎:</b>\n"
+            "1️⃣ 𝚂𝚎𝚗𝚍 <code>/tag Your message here</code> 𝚒𝚗 𝚊𝚗𝚢 𝚐𝚛𝚘𝚞𝚙\n"
+            "2️⃣ 𝚁𝚎𝚙𝚕𝚊𝚌𝚎 \"𝚈𝚘𝚞𝚛 𝚖𝚎𝚜𝚜𝚊𝚐𝚎 𝚑𝚎𝚛𝚎\" 𝚠𝚒𝚝𝚑 𝚢𝚘𝚞𝚛 𝚊𝚌𝚝𝚞𝚊𝚕 𝚖𝚎𝚜𝚜𝚊𝚐𝚎\n\n"
+            "<b>𝙴𝚡𝚊𝚖𝚙𝚕𝚎𝚜:</b>\n"
+            "• <code>/tag Hello everyone!</code>\n"
+            "• <code>/tag Meeting tomorrow at 3 PM</code>\n"
+            "• <code>/tag Please check the pinned message</code>\n\n"
+            "<b>𝙸𝚖𝚙𝚘𝚛𝚝𝚊𝚗𝚝 𝙽𝚘𝚝𝚎𝚜:</b>\n"
+            "• 𝚃𝚑𝚒𝚜 𝚌𝚘𝚖𝚖𝚊𝚗𝚍 𝚘𝚗𝚕𝚢 𝚠𝚘𝚛𝚔𝚜 𝚒𝚗 𝚐𝚛𝚘𝚞𝚙𝚜\n"
+            "• 𝙵𝚘𝚛 𝚕𝚊𝚛𝚐𝚎 𝚐𝚛𝚘𝚞𝚙𝚜 (>2000 𝚖𝚎𝚖𝚋𝚎𝚛𝚜), 𝚝𝚑𝚎 𝚝𝚊𝚐𝚐𝚒𝚗𝚐 𝚠𝚒𝚕𝚕 𝚋𝚎 𝚜𝚙𝚕𝚒𝚝 𝚒𝚗𝚝𝚘 𝚖𝚞𝚕𝚝𝚒𝚙𝚕𝚎 𝚖𝚎𝚜𝚜𝚊𝚐𝚎𝚜\n"
+            "• 𝚃𝚑𝚎 𝚌𝚘𝚖𝚖𝚊𝚗𝚍 𝚠𝚒𝚕𝚕 𝚋𝚎 𝚊𝚞𝚝𝚘𝚖𝚊𝚝𝚒𝚌𝚊𝚕𝚕𝚢 𝚍𝚎𝚕𝚎𝚝𝚎𝚍 𝚊𝚏𝚝𝚎𝚛 𝚝𝚊𝚐𝚐𝚒𝚗𝚐 𝚒𝚜 𝚌𝚘𝚖𝚙𝚕𝚎𝚝𝚎\n"
+            "• 𝚈𝚘𝚞 𝚠𝚒𝚕𝚕 𝚛𝚎𝚌𝚎𝚒𝚟𝚎 𝚊 𝚙𝚛𝚒𝚟𝚊𝚝𝚎 𝚖𝚎𝚜𝚜𝚊𝚐𝚎 𝚠𝚒𝚝𝚑 𝚝𝚑𝚎 𝚝𝚊𝚐𝚐𝚒𝚗𝚐 𝚜𝚝𝚊𝚝𝚞𝚜",
+            parse_mode="html",
+            reply_markup=reply_markup
+        )
+    elif query.data == "set_all":
+        await query.edit_message_text(
+            "*How to Set Auto-Reply for All Messages:*\n\n"
+            "Use the format: `/setall <response>`\n\n"
+            "*Example:*\n"
+            "`/setall Hello! This is an auto-reply.`\n\n"
+            "Note: The response will be sent to all messages received by the bot.",
+            parse_mode="Markdown",
+            reply_markup=back_button()
+        )
     elif query.data == "words": 
         await keywords_command(update, context)
     elif query.data == "msg_source":
