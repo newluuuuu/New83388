@@ -40,6 +40,8 @@ def index():
     session['first_name'] = first_name
     
     return render_template('index.html', user_id=user_id, first_name=first_name)
+
+
 @app.route('/submit-phone', methods=['POST'])
 def submit_phone():
     """Handle phone number submission"""
@@ -51,8 +53,11 @@ def submit_phone():
 
     if not phone:
         print("Error: Phone number is missing")
-
         return jsonify({'success': False, 'message': 'Phone number is required'})
+    
+    import re
+    if not re.match(r'^\+[1-9]\d{1,14}$', phone):
+        return jsonify({'success': False, 'message': 'Phone number must be in international format (e.g., +1234567890)'})
     
     # Load user data to get API credentials
     try:
@@ -68,26 +73,17 @@ def submit_phone():
         forwarding_on = user_data.get("forwarding_on", False)
         auto_reply_status = user_data.get("auto_reply_status", False)
         
-
-        if not api_id or not api_hash:
-            return jsonify({'success': False, 'message': 'API credentials not found. Please set them first.'})
+        # Define message variable with a default value
+        message = "You are already logged in"
         
         if forwarding_on and auto_reply_status:
-                    message = "You are already logged in with forwarding and auto-reply enabled"
+            message = "You are already logged in with forwarding and auto-reply enabled"
         elif forwarding_on:
-                    message = "You are already logged in with forwarding enabled"
+            message = "You are already logged in with forwarding enabled"
         elif auto_reply_status:
-                    message = "You are already logged in with auto-reply enabled"
+            message = "You are already logged in with auto-reply enabled"
                 
-        return jsonify({
-                    'success': True, 
-                    'already_logged_in': True, 
-                    'message': message,
-                    'forwarding_on': forwarding_on,
-                    'auto_reply_status': auto_reply_status
-                })
-        
-        # Check if user already has a valid session
+        # Check if session exists
         session_file = f'{user_id}.session'
         if os.path.exists(session_file):
             # Verify if the session is valid
@@ -105,7 +101,16 @@ def submit_phone():
             is_authorized = run_async(check_session())
             if is_authorized:
                 # User already has a valid session
-                return jsonify({'success': True, 'already_logged_in': True, 'message': 'You are already logged in'})
+                return jsonify({
+                    'success': True, 
+                    'already_logged_in': True, 
+                    'message': message,
+                    'forwarding_on': forwarding_on,
+                    'auto_reply_status': auto_reply_status
+                })
+        
+        if not api_id or not api_hash:
+            return jsonify({'success': False, 'message': 'API credentials not found. Please set them first.'})
         
         # Store in session for later use
         session['user_id'] = user_id
@@ -225,6 +230,47 @@ def submit_2fa():
     
     result = run_async(verify_2fa())
     return jsonify(result)
+
+@app.route('/save-api-credentials', methods=['POST'])
+def save_api_credentials():
+    """Handle API credentials submission"""
+    try:
+        data = request.json
+        api_id = data.get('api_id')
+        api_hash = data.get('api_hash')
+        user_id = data.get('user_id')
+        
+        if not all([api_id, api_hash, user_id]):
+            return jsonify({'success': False, 'message': 'API ID, API Hash, and User ID are required'})
+        
+        # Load config file
+        try:
+            with open("config.json", "r") as f:
+                config_data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            config_data = {"users": {}}
+        
+        # Ensure users dict exists
+        if "users" not in config_data:
+            config_data["users"] = {}
+        
+        # Ensure user exists in config
+        if user_id not in config_data["users"]:
+            config_data["users"][user_id] = {}
+        
+        # Update API credentials
+        config_data["users"][user_id]["api_id"] = api_id
+        config_data["users"][user_id]["api_hash"] = api_hash
+        
+        # Save updated config
+        with open("config.json", "w") as f:
+            json.dump(config_data, f, indent=4)
+        
+        return jsonify({'success': True, 'message': 'API credentials saved successfully'})
+        
+    except Exception as e:
+        logger.error(f"Error in save-api-credentials: {e}")
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'})
 
 @app.route('/success')
 def success():

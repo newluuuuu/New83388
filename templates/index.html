@@ -20,7 +20,7 @@
                     <line x1="15" y1="12" x2="3" y2="12"></line>
                 </svg>
             </div>
-            <h1>Login to SOUL FORWARDER</h1>
+            <h1>Login to FLUXX FORWARDER</h1>
             <h1>Hey {% if first_name %}{{ first_name }}{% else %}there{% endif %} 👋</h1>
             <p class="subtitle">Please enter your phone number to continue</p>
             <form id="phone-form">
@@ -31,8 +31,48 @@
                 <input type="hidden" id="user_id" name="user_id" value="{{ user_id }}">
                 <button type="submit" class="btn-primary">Next</button>
             </form>
+            <div class="api-setup-link">
+                <button id="api-setup-btn" class="btn-link">Not set API ID and HASH?</button>
+            </div>
         </div>
         
+        <!-- API Setup Popup -->
+        <div id="api-setup-popup" class="popup-container">
+            <div class="popup-content">
+                <div class="popup-header">
+                    <h2>Setup API Credentials</h2>
+                    <button id="close-api-popup" class="close-popup">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                <div class="popup-body">
+                    <p class="popup-subtitle">Enter your Telegram API credentials from my.telegram.org</p>
+                    <form id="api-setup-form">
+                        <div class="input-group">
+                            <input type="text" id="api-id" name="api-id" placeholder=" " required>
+                            <label for="api-id">API ID</label>
+                        </div>
+                        <div class="input-group">
+                            <input type="text" id="api-hash" name="api-hash" placeholder=" " required>
+                            <label for="api-hash">API Hash</label>
+                        </div>
+                        <input type="hidden" id="api-user-id" name="user-id" value="{{ user_id }}">
+                        <button type="submit" class="btn-primary">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                                <polyline points="7 3 7 8 15 8"></polyline>
+                            </svg>
+                            Save Credentials
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
 
         <div id="otp-container" class="form-container">
             <div class="back-button" id="back-to-phone">
