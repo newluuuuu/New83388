@@ -9,18 +9,30 @@ from telethon import TelegramClient, errors
 from telethon.tl.functions.channels import InviteToChannelRequest
 import json
 import os
+from telethon.tl.functions.messages import GetWebPagePreviewRequest
+import re
+import aiohttp
+import io
+from telegram import InputMediaPhoto
 
 async def scrape_members(client, group_id):
     """Scrape members from a group"""
     try:
         me = await client.get_me()
         participants = await client.get_participants(group_id)
-        return [str(user.id) for user in participants if not user.bot and user.id != me.id]
+        members = []
+        usernames = []
+        for user in participants:
+            if not user.bot and user.id != me.id:
+                members.append(str(user.id))
+                if user.username:
+                    usernames.append(user.username)
+        return members, usernames
     except Exception as e:
         print(f"Error scraping members: {e}")
-        return None
+        return None, None
 
-def save_scraped_members(user_id, group_id, members, group_title):
+def save_scraped_members(user_id, group_id, members, group_title, usernames):
     """Save scraped members to user's data"""
     with open("config.json", "r") as f:
         data = json.load(f)
@@ -30,12 +42,14 @@ def save_scraped_members(user_id, group_id, members, group_title):
     
     data["users"][user_id]["scraped_groups"][group_id] = {
         "members": members,
-        "title": group_title
+        "title": group_title,
+        "usernames": usernames
     }
     data["users"][user_id]["message_target"] = "groups" 
     
     with open("config.json", "w") as f:
         json.dump(data, f, indent=4)
+
 
 async def handle_scrape(update, context):
     """Handle /scrape command with enhanced group identification"""
@@ -93,9 +107,9 @@ async def handle_scrape(update, context):
             print(f"Successfully got entity: {entity.id} | Type: {type(entity).__name__}")
             
             try:
-                members = await scrape_members(client, group_id)
+                members,usernames = await scrape_members(client, group_id)
                 if members:
-                    save_scraped_members(user_id, str(group_id), members, entity.title)
+                    save_scraped_members(user_id, str(group_id), members, entity.title, usernames)
                     await progress_msg.edit_text(
                         f"✅ *Successfully scraped {len(members)} members from* `{entity.title}`",
                         parse_mode="Markdown"
@@ -113,10 +127,10 @@ async def handle_scrape(update, context):
 
 
         await progress_msg.edit_text("*🔄 Scraping members...*", parse_mode="Markdown")
-        members = await scrape_members(client, group_id)
+        members, usernames = await scrape_members(client, group_id)
         
         if members:
-            save_scraped_members(user_id, str(group_id), members, entity.title)
+            save_scraped_members(user_id, str(group_id), members, entity.title, usernames)
             await progress_msg.edit_text(
                         f"✅ *Successfully scraped {len(members)} members from* `{entity.title}`",
                         parse_mode="Markdown"
@@ -273,79 +287,84 @@ async def add_to_group(update, context):
         )
         return
 
-    scraped_group_id = context.args[0]
-    target_group = context.args[1]
-    
-    with open("config.json", "r") as f:
-        data = json.load(f)
-    
-    user_data = data["users"].get(user_id)
-    scraped_groups = user_data.get("scraped_groups", {})
-    
-    if scraped_group_id not in scraped_groups:
-        await update.message.reply_text("❌ *Scraped group ID not found*", parse_mode="Markdown")
-        return
-        
-    session_file = f'{user_id}.session'
-    if not os.path.exists(session_file):
-        await update.message.reply_text("*You need to log in first!*\nUse `/login` command", parse_mode="Markdown")
-        return
-
-    client = TelegramClient(session_file, user_data["api_id"], user_data["api_hash"])
+    progress_msg = await update.message.reply_text("*🔄 Processing...*", parse_mode="Markdown")
     
     try:
+        scraped_group_id = context.args[0]
+        target_group = context.args[1]
+        
+        with open("config.json", "r") as f:
+            data = json.load(f)
+        
+        user_data = data["users"].get(user_id)
+        scraped_groups = user_data.get("scraped_groups", {})
+        
+        if scraped_group_id not in scraped_groups:
+            await progress_msg.edit_text("❌ *Scraped group ID not found*", parse_mode="Markdown")
+            return
+            
+        session_file = f'{user_id}.session'
+        if not os.path.exists(session_file):
+            await progress_msg.edit_text("*You need to log in first!*\nUse `/login` command", parse_mode="Markdown")
+            return
+
+        client = TelegramClient(session_file, user_data["api_id"], user_data["api_hash"])
+        
         await client.connect()
         if not await client.is_user_authorized():
             await client.disconnect()
-            await update.message.reply_text("*Session expired!*\nPlease log in again using `/login`", parse_mode="Markdown")
+            await progress_msg.edit_text("*Session expired!*\nPlease log in again using `/login`", parse_mode="Markdown")
             return
 
-        progress_msg = await update.message.reply_text("*🔄 Processing...*", parse_mode="Markdown")
-        
-        # Get target group entity
         target_entity = await get_target_entity(client, target_group)
         if not target_entity:
             await progress_msg.edit_text("❌ *Invalid target group*", parse_mode="Markdown")
             return
         
-        # Stats counters
-        total_users = len(scraped_groups[scraped_group_id]["members"])
+        usernames = scraped_groups[scraped_group_id]["usernames"]
+        total_users = len(usernames)
         successful_adds = 0
-        failed_username = 0
         failed_adds = 0
         
-        await progress_msg.edit_text("*🔄 Adding users...*", parse_mode="Markdown")
+        await progress_msg.edit_text("*🔄 Adding users in batches...*", parse_mode="Markdown")
         
-        for user_id in scraped_groups[scraped_group_id]["members"]:
+        batch_size = 15
+        for i in range(0, len(usernames), batch_size):
+            batch = usernames[i:i + batch_size]
             try:
-                user = await client.get_entity(int(user_id))
-                if not user.username:
-                    failed_username += 1
-                    continue
+                await client(InviteToChannelRequest(
+                    channel=target_entity,
+                    users=batch
+                ))
+                successful_adds += len(batch)
                 
-                try:
-                    await add_user_to_group(client, target_entity, user.username)
-                    successful_adds += 1
-                    await asyncio.sleep(random.uniform(30, 60))  # Anti-ban measure
-                except Exception as e:
-                    failed_adds += 1
-                    print(f"Failed to add user {user.username}: {str(e)}")
-                    
+                await update_progress(progress_msg, total_users, successful_adds, failed_adds)
+                await asyncio.sleep(random.uniform(15, 30))
+                
+            except errors.FloodWaitError as e:
+                wait_time = e.seconds
+                await progress_msg.edit_text(
+                    f"*⏳ Flood wait: {wait_time} seconds*\n"
+                    f"Current progress:\n"
+                    f"Added: `{successful_adds}`\n"
+                    f"Failed: `{failed_adds}`",
+                    parse_mode="Markdown"
+                )
+                await asyncio.sleep(wait_time)
+                i -= batch_size
+                continue
             except Exception as e:
-                failed_username += 1
-                print(f"Failed to get username for {user_id}: {str(e)}")
-            
-            # Update progress every 10 users
-            if (successful_adds + failed_adds + failed_username) % 10 == 0:
-                await update_progress(progress_msg, total_users, successful_adds, failed_username, failed_adds)
+                print(f"Batch add failed: {str(e)}")
+                failed_adds += len(batch)
         
-        # Final stats
-        await update_progress(progress_msg, total_users, successful_adds, failed_username, failed_adds, final=True)
+        await update_progress(progress_msg, total_users, successful_adds, failed_adds, final=True)
         
     except Exception as e:
         await progress_msg.edit_text(f"❌ *Error:* `{str(e)}`", parse_mode="Markdown")
     finally:
-        await client.disconnect()
+        if 'client' in locals():
+            await client.disconnect()
+
 
 async def get_target_entity(client, target_group):
     try:
@@ -371,10 +390,7 @@ async def add_user_to_group(client, target_entity, username):
             channel=target_entity,
             users=[username]
         ))
-    except errors.FloodWaitError as e:
-        print(f"FloodWaitError: {e}")
-        await asyncio.sleep(e.seconds)
-        await add_user_to_group(client, target_entity, username)
+    
     except errors.UserPrivacyRestrictedError:
         print(f"User {username} has privacy restrictions")
         raise
@@ -388,13 +404,118 @@ async def add_user_to_group(client, target_entity, username):
         print(f"Unexpected error adding {username}: {e}")
         raise
 
-async def update_progress(progress_msg, total_users, successful_adds, failed_username, failed_adds, final=False):
+async def update_progress(progress_msg, total_users, successful_adds, failed_adds, final=False):
     status = "Complete" if final else "In Progress"
     stats_message = (
         f"📊 *Addition {status}*\n\n"
         f"Total Users: `{total_users}`\n"
         f"Successfully Added: `{successful_adds}`\n"
-        f"Failed Username Fetch: `{failed_username}`\n"
         f"Failed Additions: `{failed_adds}`"
     )
     await progress_msg.edit_text(stats_message, parse_mode="Markdown")
+
+
+async def fetch_collectible(update, context):
+    """Fetch details of a Telegram NFT collectible"""
+    user_id = str(update.message.from_user.id)
+    
+    if not context.args:
+        await update.message.reply_text(
+            "*Usage:*\n"
+            "• `/fetch <collectible_link>`\n\n"
+            "*Example:*\n"
+            "• `/fetch https://t.me/nft/durovscap-276`\n",
+            parse_mode="Markdown"
+        )
+        return
+
+    collectible_link = context.args[0]
+    
+    # Validate the link format
+    if not re.match(r'https://t\.me/nft/[\w-]+', collectible_link):
+        await update.message.reply_text(
+            "❌ *Invalid collectible link format*\n"
+            "Link should be like: `https://t.me/nft/durovscap-276`",
+            parse_mode="Markdown"
+        )
+        return
+    
+    progress_msg = await update.message.reply_text("*🔄 Fetching collectible details...*", parse_mode="Markdown")
+    
+    with open("config.json", "r") as f:
+        data = json.load(f)
+    
+    user_data = data["users"].get(user_id)
+    session_file = f'{user_id}.session'
+
+    if not os.path.exists(session_file):
+        await progress_msg.edit_text("*You need to log in first!*\nUse `/login` command", parse_mode="Markdown")
+        return
+
+    client = TelegramClient(session_file, user_data["api_id"], user_data["api_hash"])
+    
+    try:
+        await client.connect()
+        
+        if not await client.is_user_authorized():
+            await progress_msg.edit_text("*Session expired!*\nPlease log in again using `/login`", parse_mode="Markdown")
+            return
+        
+        # Get webpage preview to extract collectible details
+        webpage = await client(GetWebPagePreviewRequest(collectible_link))
+        
+        if not webpage or not webpage.webpage:
+            await progress_msg.edit_text("❌ *Failed to fetch collectible details*", parse_mode="Markdown")
+            return
+        
+        webpage = webpage.webpage
+        
+        # Extract collectible details
+        title = getattr(webpage, 'title', 'Unknown Collectible')
+        description = getattr(webpage, 'description', 'No description available')
+        
+        # Extract attributes from description
+        attributes = {}
+        for line in description.split('\n'):
+            if ':' in line:
+                key, value = line.split(':', 1)
+                attributes[key.strip()] = value.strip()
+        
+        model = attributes.get('Model', 'Unknown')
+        backdrop = attributes.get('Backdrop', 'Unknown')
+        symbol = attributes.get('Symbol', 'Unknown')
+        
+        # Extract image if available
+        image_url = None
+        if hasattr(webpage, 'photo'):
+            # Download the image
+            image_data = await client.download_media(webpage.photo, bytes)
+            image_url = True
+        
+        # Prepare response message with a different font style
+        details_message = (
+            f"✨ *{title}* ✨\n\n"
+            f"🔹 𝗠𝗼𝗱𝗲𝗹: `{model}`\n"
+            f"🔹 𝗕𝗮𝗰𝗸𝗱𝗿𝗼𝗽: `{backdrop}`\n"
+            f"🔹 𝗦𝘆𝗺𝗯𝗼𝗹: `{symbol}`\n\n"
+            f"🔗 [𝗩𝗶𝗲𝘄 𝗢𝗻 𝗧𝗲𝗹𝗲𝗴𝗿𝗮𝗺]({collectible_link})"
+        )
+        
+        # Send the image with caption if available, otherwise just the text
+        if image_url:
+            await progress_msg.delete()
+            with io.BytesIO(image_data) as photo_file:
+                photo_file.name = f"{title.replace(' ', '_')}.jpg"
+                await update.message.reply_photo(
+                    photo=photo_file,
+                    caption=details_message,
+                    parse_mode="Markdown"
+                )
+        else:
+            await progress_msg.edit_text(details_message, parse_mode="Markdown")
+            
+    except Exception as e:
+        print(f"❌ *Error fetching collectible:* `{str(e)}`")
+    finally:
+        if client.is_connected():
+            await client.disconnect()
