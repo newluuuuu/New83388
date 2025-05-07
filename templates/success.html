@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Successful</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div id="success-container" class="form-container active">
+            <div class="success-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            </div>
+            <h1>Login Successful!</h1>
+            <p class="subtitle">You are now logged in to your Telegram account</p>
+            <p class="closing-text">This window will close in <span id="countdown">5</span> seconds</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // Initialize Telegram WebApp
+            const tgWebApp = window.Telegram.WebApp;
+            tgWebApp.expand();
+            tgWebApp.ready();
+            
+            // Start countdown
+            startCountdown();
+            
+            // Countdown function
+            function startCountdown() {
+                let seconds = 5;
+                const countdownElement = document.getElementById("countdown");
+                
+                const interval = setInterval(() => {
+                    seconds--;
+                    countdownElement.textContent = seconds;
+                    
+                    if (seconds <= 0) {
+                        clearInterval(interval);
+                        // Close the WebApp
+                        tgWebApp.close();
+                    }
+                }, 1000);
+            }
+        });
+    </script>
+</body>
+</html>

