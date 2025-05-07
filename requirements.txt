@@ -3,3 +3,5 @@ requests
 telethon
 apscheduler
 python-dotenv
+flask
+aiohttp
