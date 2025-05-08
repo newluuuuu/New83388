@@ -485,14 +485,7 @@ async def fetch_collectible(update, context):
         backdrop = attributes.get('Backdrop', 'Unknown')
         symbol = attributes.get('Symbol', 'Unknown')
         
-        # Extract image if available
-        image_url = None
-        if hasattr(webpage, 'photo'):
-            # Download the image
-            image_data = await client.download_media(webpage.photo, bytes)
-            image_url = True
-        
-        # Prepare response message with a different font style
+        # Prepare response message
         details_message = (
             f"✨ *{title}* ✨\n\n"
             f"🔹 𝗠𝗼𝗱𝗲𝗹: `{model}`\n"
@@ -501,8 +494,21 @@ async def fetch_collectible(update, context):
             f"🔗 [𝗩𝗶𝗲𝘄 𝗢𝗻 𝗧𝗲𝗹𝗲𝗴𝗿𝗮𝗺]({collectible_link})"
         )
         
-        # Send the image with caption if available, otherwise just the text
-        if image_url:
+        # Try to get image but don't fail if we can't
+        image_data = None
+        try:
+            if hasattr(webpage, 'photo'):
+                # Set a timeout for the download operation
+                image_data = await asyncio.wait_for(
+                    client.download_media(webpage.photo, bytes),
+                    timeout=15  # 10 seconds timeout
+                )
+        except (asyncio.TimeoutError, Exception) as img_err:
+            print(f"Image download failed: {img_err}")
+            # Continue without the image
+        
+        # Send the response
+        if image_data:
             await progress_msg.delete()
             with io.BytesIO(image_data) as photo_file:
                 photo_file.name = f"{title.replace(' ', '_')}.jpg"
@@ -512,10 +518,12 @@ async def fetch_collectible(update, context):
                     parse_mode="Markdown"
                 )
         else:
+            # Just send the text if we couldn't get the image
             await progress_msg.edit_text(details_message, parse_mode="Markdown")
             
     except Exception as e:
-        print(f"❌ *Error fetching collectible:* `{str(e)}`")
+        print(f"Error fetching collectible: {str(e)}")
+        await progress_msg.edit_text(f"❌ *Error fetching collectible:* `{str(e)}`", parse_mode="Markdown")
     finally:
         if client.is_connected():
             await client.disconnect()
