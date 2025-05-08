@@ -462,13 +462,18 @@ async def fetch_collectible(update, context):
             return
         
         # Get webpage preview to extract collectible details
-        webpage = await client(GetWebPagePreviewRequest(collectible_link))
+        response = await client(GetWebPagePreviewRequest(collectible_link))
         
-        if not webpage or not webpage.webpage:
+        # Debug the response structure
+        print(f"Response type: {type(response)}")
+        print(f"Response attributes: {dir(response)}")
+        
+        # The correct attribute is 'webpage' directly on the response
+        if not response or not hasattr(response, 'webpage'):
             await progress_msg.edit_text("❌ *Failed to fetch collectible details*", parse_mode="Markdown")
             return
         
-        webpage = webpage.webpage
+        webpage = response.webpage
         
         # Extract collectible details
         title = getattr(webpage, 'title', 'Unknown Collectible')
