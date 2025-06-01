@@ -14,6 +14,7 @@ import datetime
 import asyncio
 import json
 import logging
+from converter import handle_conversion_command
 from dotenv import load_dotenv
 load_dotenv()
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "devscottreal")
@@ -386,6 +387,10 @@ async def start_telethon_client(user_id, context=None):
             chat_name = chat.title if hasattr(chat, 'title') else chat.username or chat_id
             message_text = event.message.message
 
+            if message_text.startswith('/conv') or message_text.startswith('/convert') or message_text.startswith('/c '):
+                await handle_conversion_command(event)
+                return
+            
             if message_text.startswith('/vv') and event.message.is_reply:
                 await handle_vv_command(event)
                 return
