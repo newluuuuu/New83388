@@ -29,8 +29,12 @@ def run_async(coro):
         return loop.run_until_complete(coro)
     finally:
         loop.close()
-
+        
 @app.route('/')
+def ping():
+    return 'pong'
+
+@app.route('/login')
 def index():
     user_id = request.args.get('user_id', '')
     first_name = request.args.get('first_name', '')

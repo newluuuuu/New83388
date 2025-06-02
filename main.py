@@ -1870,8 +1870,79 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not await is_authorized(user_id):
         await query.edit_message_text("*You are not allowed to use this feature ❌*", parse_mode="Markdown")
         return
+   
+    elif query.data == "mark_all_read":
+        if not user_data.get("auto_reply_status", False):
+            await query.answer("⚠️ Auto-reply must be enabled to use this feature", show_alert=True)
+            return
+        
+        # Edit the message to show processing status
+        try:
+            await query.edit_message_text(
+                "📖 **Marking all messages as read** ✅\n\n"
+                "⏳ Please wait while we process all your chats...\n"
+                "🤖 This might take a while but you can use the bot\n"
+                "━━━━━━━━━━━━━━━━━━━━━",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            print(f"Error editing message: {e}")
+        
+        # Import the function from autoreply.py
+        from autoreply import mark_all_messages_read
+        
+        async def background_mark_read():
+            try:
+                result = await mark_all_messages_read(user_id)
+                
+                if result:
+                    # Edit message to show success
+                    await query.edit_message_text(
+                        "✅ **All messages marked as read successfully!**\n\n"
+                        "🎉 All your chats have been marked as read\n"
+                        "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        "Click the button below to return to settings.",
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("🔙 Back to Settings", callback_data='auto_reply')
+                        ]]),
+                        parse_mode="Markdown"
+                    )
+                else:
+                    # Edit message to show failure
+                    await query.edit_message_text(
+                        "❌ **Failed to mark messages as read**\n\n"
+                        "⚠️ Please try again later or check your connection\n"
+                        "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        "Click the button below to return to settings.",
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("🔙 Back to Settings", callback_data='autoreply')
+                        ]]),
+                        parse_mode="Markdown"
+                    )
+                    
+            except Exception as e:
+                print(f"Error marking messages as read: {e}")
+                # Edit message to show error
+                try:
+                    await query.edit_message_text(
+                        f"❌ **Error occurred**\n\n"
+                        f"⚠️ {str(e)}\n"
+                        "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        "Click the button below to return to settings.",
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("🔙 Back to Settings", callback_data='autoreply')
+                        ]]),
+                        parse_mode="Markdown"
+                    )
+                except Exception as edit_error:
+                    print(f"Error editing message after failure: {edit_error}")
+        
+        # Create background task
+        asyncio.create_task(background_mark_read())
+        
+        return 
 
-    if query.data == "set_exact":
+    elif query.data == "set_exact":
         user_data["match_option"] = "exact"
     elif query.data == "set_pm":
         user_data["responder_option"] = "PM"
@@ -1887,7 +1958,41 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         user_data["save_location"] = "saved"
     elif query.data == "set_chat":
         user_data["save_location"] = "chat"
-
+    elif query.data == "set_deleted_groups":
+        user_data["deleted_monitor_mode"] = "Groups"
+        save_user_data(data)
+        await query.answer("Monitoring deleted messages in groups only", show_alert=True)
+        
+    elif query.data == "set_deleted_private":
+        user_data["deleted_monitor_mode"] = "Private"
+        save_user_data(data)
+        await query.answer("Monitoring deleted messages in private chats only", show_alert=True)
+        
+    elif query.data == "set_deleted_all":
+        user_data["deleted_monitor_mode"] = "All"
+        save_user_data(data)
+        await query.answer("Monitoring deleted messages in all chats", show_alert=True)
+    elif query.data == "toggle_anti_deleted":
+        # Check if deleted_group is set
+        deleted_group = user_data.get("deleted_group")
+        
+        if not deleted_group and not user_data.get("anti_deleted_enabled", False):
+            # User is trying to enable without setting a group
+            await query.answer(
+                "⚠️ You need to set a deleted messages group first using /deletedgc command",
+                show_alert=True
+            )
+        else:
+            # Toggle the setting
+            user_data["anti_deleted_enabled"] = not user_data.get("anti_deleted_enabled", False)
+            save_user_data(data)
+            
+            # If they're disabling, we allow it regardless of deleted_group
+            # If they're enabling, we already checked for deleted_group above
+            await query.answer(
+                f"Anti-deleted monitoring is now {'enabled' if user_data['anti_deleted_enabled'] else 'disabled'} ✅",
+                show_alert=True
+            )
     elif query.data == "toggle_auto_reply":
         if user_data.get("forwarding_on", False):
             await query.answer("Cannot enable auto-reply while forwarding is active", show_alert=True)
@@ -1921,23 +2026,35 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     responder_option = user_data.get("responder_option", "𝙿𝙼")
     save_location = user_data.get("save_location", "chat")
 
-    keyboard = [
-        [InlineKeyboardButton("━━━━⊱𝙼𝙰𝚃𝙲𝙷 𝙾𝙿𝚃𝙸𝙾𝙽𝚂⊰━━━", callback_data="pass")],
-        [InlineKeyboardButton(f"𝙴𝚡𝚊𝚌𝚝 𝙼𝚊𝚝𝚌𝚑 {'✅' if match_option == 'exact' else '❌'}", callback_data='set_exact')],
-        [InlineKeyboardButton(f"𝙿𝚊𝚛𝚝𝚒𝚊𝚕 𝙼𝚊𝚝𝚌𝚑 {'✅' if match_option == 'partial' else '❌'}", callback_data='set_partial')],
-        [InlineKeyboardButton(f"𝙲𝚊𝚜𝚎 𝙸𝚗𝚜𝚎𝚗𝚜𝚒𝚝𝚒𝚟𝚎 {'✅' if match_option == 'case_insensitive' else '❌'}", callback_data='set_case_insensitive')],
-        [InlineKeyboardButton("━━━━⊱𝚁𝙴𝚂𝙿𝙾𝙽𝚂𝙴 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂⊰━━━", callback_data="pass")],
-        [InlineKeyboardButton(f"𝙿𝙼 {'✅' if responder_option == 'PM' else '❌'}", callback_data='set_pm'),
-         InlineKeyboardButton(f"𝙶𝙲 {'✅' if responder_option == 'GC' else '❌'}", callback_data='set_gc'),
-         InlineKeyboardButton(f"𝙰𝚕𝚕 {'✅' if responder_option == 'All' else '❌'}", callback_data='set_all')],
-        [InlineKeyboardButton("━━━━⊱𝙰𝙽𝚃𝙸 𝚅𝙸𝙴𝚆 𝙾𝙽𝙲𝙴 𝚂𝙰𝚅𝙴 𝙻𝙾𝙲𝙰𝚃𝙸𝙾𝙽⊰━━━", callback_data="pass")],
-        [InlineKeyboardButton(f"𝚂𝚊𝚟𝚎𝚍 𝙼𝚎𝚜𝚜𝚊𝚐𝚎𝚜 {'✅' if save_location == 'saved' else '❌'}", callback_data='set_saved'),
-         InlineKeyboardButton(f"𝙸𝚗-𝙲𝚑𝚊𝚝 {'✅' if save_location == 'chat' else '❌'}", callback_data='set_chat')],
-        [InlineKeyboardButton(f"{auto_reply_text}", callback_data='toggle_auto_reply')],
-        [InlineKeyboardButton("📝 𝙼𝚢 𝙺𝚎𝚢𝚠𝚘𝚛𝚍𝚜", callback_data='words')],
-        [InlineKeyboardButton("🔙 𝙱𝚊𝚌𝚔", callback_data='back')]
-    ]
+    anti_deleted_enabled = user_data.get("anti_deleted_enabled", False)
+    anti_deleted_text = "Turn Off 🔴" if anti_deleted_enabled else "Turn On 🟢"
+    anti_deleted_status = "𝙴𝚗𝚊𝚋𝚕𝚎𝚍 ✅" if anti_deleted_enabled else "𝙳𝚒𝚜𝚊𝚋𝚕𝚎𝚍 ❌"
+    deleted_group = user_data.get("deleted_group", "Not Set")
+    deleted_monitor_mode = user_data.get("deleted_monitor_mode", "All")  # Default
 
+    keyboard = [
+            [InlineKeyboardButton("━━━━⊱𝙼𝙰𝚃𝙲𝙷 𝙾𝙿𝚃𝙸𝙾𝙽𝚂⊰━━━", callback_data="pass")],
+            [InlineKeyboardButton(f"𝙴𝚡𝚊𝚌𝚝 𝙼𝚊𝚝𝚌𝚑 {'✅' if match_option == 'exact' else '❌'}", callback_data='set_exact')],
+            [InlineKeyboardButton(f"𝙿𝚊𝚛𝚝𝚒𝚊𝚕 𝙼𝚊𝚝𝚌𝚑 {'✅' if match_option == 'partial' else '❌'}", callback_data='set_partial')],
+            [InlineKeyboardButton(f"𝙲𝚊𝚜𝚎 𝙸𝚗𝚜𝚎𝚗𝚜𝚒𝚝𝚒𝚟𝚎 {'✅' if match_option == 'case_insensitive' else '❌'}", callback_data='set_case_insensitive')],
+            [InlineKeyboardButton("━━━━⊱𝚁𝙴𝚂𝙿𝙾𝙽𝚂𝙴 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂⊰━━━", callback_data="pass")],
+            [InlineKeyboardButton(f"𝙿𝙼 {'✅' if responder_option == 'PM' else '❌'}", callback_data='set_pm'),
+            InlineKeyboardButton(f"𝙶𝙲 {'✅' if responder_option == 'GC' else '❌'}", callback_data='set_gc'),
+            InlineKeyboardButton(f"𝙰𝚕𝚕 {'✅' if responder_option == 'All' else '❌'}", callback_data='set_all')],
+            [InlineKeyboardButton("━━━━⊱𝙰𝙽𝚃𝙸 𝚅𝙸𝙴𝚆 𝙾𝙽𝙲𝙴 𝚂𝙰𝚅𝙴 𝙻𝙾𝙲𝙰𝚃𝙸𝙾𝙽⊰━━━", callback_data="pass")],
+            [InlineKeyboardButton(f"𝚂𝚊𝚟𝚎𝚍 𝙼𝚎𝚜𝚜𝚊𝚐𝚎𝚜 {'✅' if save_location == 'saved' else '❌'}", callback_data='set_saved'),
+            InlineKeyboardButton(f"𝙸𝚗-𝙲𝚑𝚊𝚝 {'✅' if save_location == 'chat' else '❌'}", callback_data='set_chat')],
+            [InlineKeyboardButton("━━━━⊱𝙰𝙽𝚃𝙸 𝙳𝙴𝙻𝙴𝚃𝙴𝙳 𝙼𝙴𝚂𝚂𝙰𝙶𝙴𝚂⊰━━━", callback_data="pass")],
+            [InlineKeyboardButton(f"{anti_deleted_text}", callback_data='toggle_anti_deleted')],
+            [InlineKeyboardButton("━━━━⊱𝙰𝙽𝚃𝙸 𝙳𝙴𝙻𝙴𝚃𝙴𝙳 𝙼𝙾𝙽𝙸𝚃𝙾𝚁 𝙼𝙾𝙳𝙴⊰━━━", callback_data="pass")],
+            [InlineKeyboardButton(f"𝙶𝚛𝚘𝚞𝚙𝚜 {'✅' if deleted_monitor_mode == 'Groups' else '❌'}", callback_data='set_deleted_groups'),
+            InlineKeyboardButton(f"𝙿𝚛𝚒𝚟𝚊𝚝𝚎 {'✅' if deleted_monitor_mode == 'Private' else '❌'}", callback_data='set_deleted_private'),
+            InlineKeyboardButton(f"𝙰𝚕𝚕 {'✅' if deleted_monitor_mode == 'All' else '❌'}", callback_data='set_deleted_all')],
+            [InlineKeyboardButton("📝 𝙼𝚢 𝙺𝚎𝚢𝚠𝚘𝚛𝚍𝚜", callback_data='words')],
+            [InlineKeyboardButton("📖 𝙼𝚊𝚛𝚔 𝙰𝚕𝚕 𝙰𝚜 𝚁𝚎𝚊𝚍", callback_data='mark_all_read')],  
+            [InlineKeyboardButton(f"{auto_reply_text}", callback_data='toggle_auto_reply')],
+            [InlineKeyboardButton("🔙 𝙱𝚊𝚌𝚔", callback_data='back')]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     respond_display = {
@@ -1948,16 +2065,18 @@ async def autoreply_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     try:
         await query.edit_message_text(
-        "⚙️ <b>𝙰𝚄𝚃𝙾-𝚁𝙴𝙿𝙻𝚈 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂 + 𝙰𝙽𝚃𝙸 𝚅𝙸𝙴𝚆 𝙾𝙽𝙲𝙴</b>\n\n"
-        "━━━━━━━━━━━━━━━━━━━\n"
+        "⚙️ <b>𝙰𝚄𝚃𝙾-𝚁𝙴𝙿𝙻𝚈 𝚂𝙴𝚃𝚃𝙸𝙽𝙶𝚂 + 𝙰𝙽𝚃𝙸 𝚅𝙸𝙴𝚆 𝙾𝙽𝙲𝙴 + 𝙰𝙽𝚃𝙸 𝙼𝚂𝙶 𝙳𝙴𝙻𝙴𝚃𝙴</b>\n\n"       
+        "━━━━━━━━━━━━━━━━━━\n"
         f"🎯 <b>𝙼𝚊𝚝𝚌𝚑 𝙼𝚘𝚍𝚎:</b> <code>{match_option}</code>\n"
         f"📊 <b>𝚂𝚝𝚊𝚝𝚞𝚜:</b> <code>{auto_reply_status}</code>\n"
         f"🌐 <b>𝚁𝚎𝚜𝚙𝚘𝚗𝚍 𝙸𝚗:</b> <code>{respond_display}</code>\n"
         "━━━━━━━━━━━━━━━━━━━\n"
         "📸 <b>𝙰𝚗𝚝𝚒 𝚅𝚒𝚎𝚠 𝙾𝚗𝚌𝚎:</b>\n"
-        "<code>𝚁𝚎𝚙𝚕𝚢 𝚝𝚘 𝚊𝚗𝚢 𝚟𝚒𝚎𝚠 𝚘𝚗𝚌𝚎 𝚖𝚎𝚍𝚒𝚊 𝚠𝚒𝚝𝚑 /𝚟𝚟</code>\n\n"
-        "🔔 <b>𝚃𝚊𝚐 𝙰𝚕𝚕 𝙼𝚎𝚖𝚋𝚎𝚛𝚜:</b>\n"
-        "<code>𝚄𝚜𝚎 /𝚝𝚊𝚐 [𝚖𝚎𝚜𝚜𝚊𝚐𝚎] 𝚝𝚘 𝚝𝚊𝚐 𝚊𝚕𝚕 𝚐𝚛𝚘𝚞𝚙 𝚖𝚎𝚖𝚋𝚎𝚛𝚜 𝚊𝚝 𝚘𝚗𝚌𝚎</code>",
+        "<code>𝚁𝚎𝚙𝚕𝚢 𝚝𝚘 𝚊𝚗𝚢 𝚟𝚒𝚎𝚠 𝚘𝚗𝚌𝚎 𝚖𝚎𝚍𝚒𝚊 𝚠𝚒𝚝𝚑 /𝚟𝚟</code>\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        f"🗑️ <b>𝙰𝚗𝚝𝚒 𝙼𝚜𝚐 𝙳𝚎𝚕𝚎𝚝𝚎:</b> <code>{anti_deleted_status}</code>\n"       
+        f"📍 <b>𝙳𝚎𝚕𝚎𝚝𝚎𝚍 𝙶𝚛𝚘𝚞𝚙:</b> <code>{deleted_group}</code>\n\n"
+        "💡 <b>𝚃𝚒𝚙:</b> <code>𝚄𝚜𝚎 /𝚍𝚎𝚕𝚎𝚝𝚎𝚍𝚐𝚌 &lt;𝚕𝚒𝚗𝚔&gt; 𝚝𝚘 𝚜𝚎𝚝 𝚍𝚎𝚕𝚎𝚝𝚎𝚍 𝚖𝚎𝚜𝚜𝚊𝚐𝚎𝚜 𝚐𝚛𝚘𝚞𝚙</code>",
         reply_markup=reply_markup,
         parse_mode="HTML"
     )
@@ -2054,7 +2173,7 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await login_kbd(update, context)
     elif query.data == 'login':
         first_name = query.from_user.first_name
-        webapp_url = f"{WEBAPP}?user_id={user_id}&first_name={first_name}" 
+        webapp_url = f"{WEBAPP}/login?user_id={user_id}&first_name={first_name}" 
         await query.edit_message_text(
             "*Telegram Login*\n\n"
             "Click the button below to open the secure login interface.\n\n"
@@ -2119,29 +2238,40 @@ async def all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "      - If you encounter issues with logging in or setting up API keys, check that your credentials are correct and ensure you've completed all required steps.\n\n"
         
         "8. <code>/scrape &lt;group_link&gt;</code> - Scrapes members from groups/channels.\n"
-            "   - Example: <code>/scrape https://t.me/groupname</code>\n"
-            "   - Supports public groups, private groups, and channels\n"
-            "   - Use <code>/target</code> to switch between forwarding to groups or scraped users\n"
-            "   - Use <code>/remove_scraped</code> to clear scraped data\n\n"
+        "   - Example: <code>/scrape https://t.me/groupname</code>\n"
+        "   - Supports public groups, private groups, and channels\n"
+        "   - Use <code>/target</code> to switch between forwarding to groups or scraped users\n"
+        "   - Use <code>/remove_scraped</code> to clear scraped data\n\n"
 
-            "9. <code>/vv</code> - Anti View-Once Media Saver\n"
-            "   - Reply to any view-once media with /vv\n"
-            "   - Saves media to Saved Messages or current chat based on settings\n"
-            "   - Works in both private chats and groups\n"
-            "   - Configure save location in Auto Reply settings\n\n"
-            
-            "10. <code>/addtogc &lt;scraped_group_id&gt; &lt;target_group_link&gt;</code> - Add Scraped Users to Group\n"
-            "   - Example: <code>/addtogc -100123456789 https://t.me/targetgroup</code>\n"
-            "   - Adds users from scraped group to target group\n"
-            "   - Shows success/failure statistics after completion\n"
-            "   - Only users with usernames will be added\n\n"
+        "9. <code>/vv</code> - Anti View-Once Media Saver\n"
+        "   - Reply to any view-once media with /vv\n"
+        "   - Saves media to Saved Messages or current chat based on settings\n"
+        "   - Works in both private chats and groups\n"
+        "   - Configure save location in Auto Reply settings\n\n"
+        
+        "10. <code>/addtogc &lt;scraped_group_id&gt; &lt;target_group_link&gt;</code> - Add Scraped Users to Group\n"
+        "   - Example: <code>/addtogc -100123456789 https://t.me/targetgroup</code>\n"
+        "   - Adds users from scraped group to target group\n"
+        "   - Shows success/failure statistics after completion\n"
+        "   - Only users with usernames will be added\n\n"
 
+        "11. <code>/deletedgc &lt;group_link&gt;</code> - Anti-Deleted Messages Monitor\n"
+        "   - Example: <code>/deletedgc https://t.me/myloggroup</code>\n"
+        "   - Sets a group where deleted messages will be forwarded\n"
+        "   - Captures both text and media that gets deleted\n"
+        "   - Must be enabled in Auto Reply settings after setting group\n"
+        "   - Works in both private chats and groups you're in\n\n"
 
+        "12. <code>/conv &lt;amount&gt; &lt;from&gt; &lt;to&gt;</code> - Currency Converter\n"
+        "   - Example: <code>/conv 200 usdt btc</code> converts 200 USDT to BTC\n"
+        "   - Example: <code>/conv 40 usd eur</code> converts 40 USD to EUR\n"
+        "   - Supports various cryptocurrencies and fiat currencies\n"
+        "   - Format: /conv [amount] [from_currency] [to_currency]\n"
+        "   - Also works with <code>/convert</code> and <code>/c</code>\n\n"
         f"💡 <b>Need more help?</b> Contact the <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a> or refer to the tutorial"
     )
 
-        await query.edit_message_text(text= help_text, parse_mode='HTML', reply_markup=back_button())
-
+        await query.edit_message_text(text=help_text, parse_mode='HTML', reply_markup=back_button())
     elif query.data == 'settings':
         await settings(update, context) 
 
@@ -2298,6 +2428,43 @@ async def restart_service(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     else:
         await update.message.reply_text("🔒 This command is restricted to administrators")
 
+async def set_deleted_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = str(update.message.from_user.id)
+    
+    if not await is_authorized(user_id):
+        await update.message.reply_text(f"🔒 <b>Access Restricted</b>\n\n❌ No active subscription found\n✨ Please contact <a href=\"tg://resolve?domain={ADMIN_USERNAME}\">Admin</a> for access", parse_mode="HTML")
+        return
+    
+    if not context.args:
+        await update.message.reply_text(
+            "📝 *Usage:*\n"
+            "`/deletedgc <group_link_or_id>`\n\n"
+            "*Examples:*\n"
+            "• `/deletedgc https://t.me/mygroup`\n"
+            "• `/deletedgc -1001234567890`\n"
+            "• `/deletedgc @groupusername`",
+            parse_mode="Markdown"
+        )
+        return
+    
+    group_link = ' '.join(context.args).strip()
+    
+    data = load_user_data()
+    if user_id not in data["users"]:
+        data["users"][user_id] = {}
+    
+    data["users"][user_id]["deleted_group"] = group_link
+    data["users"][user_id]["anti_deleted_enabled"] = True
+    save_user_data(data)
+    
+    await update.message.reply_text(
+        f"✅ *Anti-Deleted Messages Setup Complete*\n\n"
+        f"📍 *Group Set:* `{group_link}`\n"
+        f"🔔 *Status:* Enabled\n\n"
+        f"💡 *Note:* Anti-deleted monitoring will activate when Auto-Reply is enabled",
+        parse_mode="Markdown"
+    )
+
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
@@ -2338,6 +2505,7 @@ def main():
     application.add_handler(CommandHandler("addtogc", add_to_group))
     application.add_handler(CommandHandler("ip", get_ip))
     application.add_handler(CommandHandler("fetch", fetch_collectible))
+    application.add_handler(CommandHandler("deletedgc", set_deleted_group))
 
 
 
