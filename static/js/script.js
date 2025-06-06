@@ -10,6 +10,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const twofaContainer = document.getElementById("twofa-container")
   const successContainer = document.getElementById("success-container")
   const apiSetupPopup = document.getElementById("api-setup-popup")
+  const phoneConfirmPopup = document.getElementById("phone-confirm-popup")
+
 
   // Get forms
   const phoneForm = document.getElementById("phone-form")
@@ -22,6 +24,31 @@ document.addEventListener("DOMContentLoaded", () => {
   const backToOtp = document.getElementById("back-to-otp")
   const apiSetupBtn = document.getElementById("api-setup-btn")
   const closeApiPopup = document.getElementById("close-api-popup")
+  const useSavedPhone = document.getElementById("use-saved-phone")
+  const useDifferentPhone = document.getElementById("use-different-phone")
+  
+  // Check for saved phone number on page load
+  const savedPhone = document.getElementById("saved_phone").value
+  if (savedPhone) {
+    // Show phone confirmation popup
+    document.getElementById("saved-phone-display").textContent = savedPhone
+    phoneConfirmPopup.classList.add("show")
+  }
+  
+  // Handle saved phone confirmation
+  useSavedPhone.addEventListener("click", () => {
+    const savedPhoneNumber = document.getElementById("saved_phone").value
+    document.getElementById("phone").value = savedPhoneNumber
+    phoneConfirmPopup.classList.remove("show")
+    
+    // Auto-submit the form with saved phone
+    phoneForm.dispatchEvent(new Event('submit'))
+  })
+  
+  useDifferentPhone.addEventListener("click", () => {
+    phoneConfirmPopup.classList.remove("show")
+    // User can now enter a different phone number
+  })
   
   // API Setup popup handlers
   apiSetupBtn.addEventListener("click", () => {
@@ -298,6 +325,36 @@ document.addEventListener("DOMContentLoaded", () => {
     const otpInputs = document.querySelectorAll(".otp-input")
   
     otpInputs.forEach((input) => {
+      
+      // Handle paste event
+      input.addEventListener("paste", function (e) {
+        e.preventDefault()
+        
+        // Get pasted data
+        const pastedData = (e.clipboardData || window.clipboardData).getData('text')
+        
+        // Remove any non-numeric characters and limit to 5 digits
+        const cleanedData = pastedData.replace(/\D/g, '').slice(0, 5)
+        
+        if (cleanedData.length > 0) {
+          // Fill the OTP inputs with the pasted data
+          otpInputs.forEach((otpInput, index) => {
+            if (index < cleanedData.length) {
+              otpInput.value = cleanedData[index]
+            } else {
+              otpInput.value = ''
+            }
+          })
+          
+          // Focus on the next empty input or the last filled input
+          const nextEmptyIndex = Math.min(cleanedData.length, 4)
+          otpInputs[nextEmptyIndex].focus()
+          
+          // Update the full OTP value
+          document.getElementById("full-otp").value = cleanedData
+        }
+      })
+
       input.addEventListener("input", function () {
         const index = Number.parseInt(this.getAttribute("data-index"))
   

