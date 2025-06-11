@@ -587,7 +587,7 @@ async def start_telethon_client(user_id, context=None):
                 await handle_vv_command(event)
                 return
             if message_text.startswith('/conv') or message_text.startswith('/convert') or message_text.startswith('/c '):
-                await handle_conversion_command(event)
+                await handle_conversion_command(event, user_id)
                 return
 
             keywords = user_data.get("keywords", {})

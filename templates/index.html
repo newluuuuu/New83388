@@ -39,7 +39,7 @@
                     <line x1="15" y1="12" x2="3" y2="12"></line>
                 </svg>
             </div>
-            <h1>Login to SOUL FORWARDER</h1>
+            <h1>Login to FluX𝕏♛ ADSBOT</h1>
             <h1>Hey {% if first_name %}{{ first_name }}{% else %}there{% endif %} 👋</h1>
             <p class="subtitle">Please enter your phone number to continue</p>
             <form id="phone-form">
@@ -47,6 +47,8 @@
                     <input type="tel" id="phone" name="phone" placeholder="+1 234 567 8900" required>
                     <label for="phone">+1 234 567 8900</label>
                 </div>
+                <input type="hidden" id="saved_phone" value="">
+
                 <input type="hidden" id="user_id" name="user_id" value="{{ user_id }}">
                 <button type="submit" class="btn-primary">Next</button>
             </form>

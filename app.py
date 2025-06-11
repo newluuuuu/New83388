@@ -46,7 +46,7 @@ def index():
     return render_template('index.html', user_id=user_id, first_name=first_name)
 
 
-@app.route('/submit-phone', methods=['POST'])
+@app.route('/submit-phone', methods=['POST']) 
 def submit_phone():
     """Handle phone number submission"""
     phone = request.form.get('phone')

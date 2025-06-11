@@ -2,7 +2,11 @@ import aiohttp
 import asyncio
 import re
 import logging
-from typing import Optional, Tuple
+import time
+from datetime import datetime, timedelta
+from typing import Optional, Tuple, Dict
+import json
+import os
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -12,6 +16,9 @@ class CurrencyConverter:
     def __init__(self):
         self.crypto_api_url = "https://api.coingecko.com/api/v3/simple/price"
         self.fiat_api_url = "https://api.exchangerate-api.com/v4/latest/USD"
+        self.user_usage_file = "user_usage.json"
+        self.user_usage = self.load_user_usage()
+        self.owner_id = None 
         
         # Common currency mappings
         self.currency_aliases = {
@@ -121,6 +128,109 @@ class CurrencyConverter:
             'agix': 'singularitynet', 'singularitynet': 'singularitynet',
         }
 
+    def load_user_usage(self) -> Dict:
+        """Load user usage data from file"""
+        try:
+            if os.path.exists(self.user_usage_file):
+                with open(self.user_usage_file, 'r') as f:
+                    return json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading user usage data: {e}")
+        return {}
+
+    def save_user_usage(self):
+        """Save user usage data to file"""
+        try:
+            with open(self.user_usage_file, 'w') as f:
+                json.dump(self.user_usage, f, indent=2)
+        except Exception as e:
+            logger.error(f"Error saving user usage data: {e}")
+
+   
+    def is_owner(self, user_id: str, session_owner_id: str) -> bool:
+        """Check if user is the owner of this session"""
+        return str(user_id) == str(session_owner_id)
+
+    def check_user_limits(self, user_id: str, session_owner_id: str) -> Tuple[bool, int, int]:
+        """
+        Check if user can use the converter
+        Returns: (can_use, usage_left, cooldown_remaining)
+        """
+        user_id = str(user_id)
+        session_owner_id = str(session_owner_id)
+        
+        # Session owner has no limits
+        if self.is_owner(user_id, session_owner_id):
+            return True, -1, 0
+        
+        current_time = time.time()
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        
+        # Create unique key for user per session
+        user_key = f"{session_owner_id}_{user_id}"
+        
+        # Initialize user data if not exists
+        if user_key not in self.user_usage:
+            self.user_usage[user_key] = {
+                'daily_count': 0,
+                'last_date': current_date,
+                'last_usage': 0
+            }
+        
+        user_data = self.user_usage[user_key]
+        
+        # Reset daily count if new day
+        if user_data['last_date'] != current_date:
+            user_data['daily_count'] = 0
+            user_data['last_date'] = current_date
+        
+        # Check cooldown (30 seconds)
+        cooldown_remaining = max(0, int(30 - (current_time - user_data['last_usage'])))
+        if cooldown_remaining > 0:
+            return False, max(0, 5 - user_data['daily_count']), cooldown_remaining
+        
+        # Check daily limit (5 uses per day)
+        if user_data['daily_count'] >= 5:
+            return False, 0, 0
+        
+        return True, max(0, 5 - user_data['daily_count']), 0
+
+    def update_user_usage(self, user_id: str, session_owner_id: str):
+        """Update user usage after successful conversion"""
+        user_id = str(user_id)
+        session_owner_id = str(session_owner_id)
+        
+        # Session owner usage is not tracked
+        if self.is_owner(user_id, session_owner_id):
+            return
+        
+        current_time = time.time()
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        
+        # Create unique key for user per session
+        user_key = f"{session_owner_id}_{user_id}"
+        
+        if user_key not in self.user_usage:
+            self.user_usage[user_key] = {
+                'daily_count': 0,
+                'last_date': current_date,
+                'last_usage': 0
+            }
+        
+        user_data = self.user_usage[user_key]
+        
+        # Reset daily count if new day
+        if user_data['last_date'] != current_date:
+            user_data['daily_count'] = 0
+            user_data['last_date'] = current_date
+        
+        user_data['daily_count'] += 1
+        user_data['last_usage'] = current_time
+        
+        self.save_user_usage()
+
+
+    
     def parse_conversion_command(self, text: str) -> Optional[Tuple[float, str, str]]:
         """Parse conversion command and extract amount, from_currency, to_currency"""
         try:
@@ -132,44 +242,54 @@ class CurrencyConverter:
             elif text.startswith('/c '):
                 text = text.replace('/c ', '', 1).strip()
             
-            # Pattern 1: /conv 1600 ngn usd
-            pattern1 = r'^(\d+(?:\.\d+)?)\s+([a-zA-Z]+)\s+([a-zA-Z]+)$'
+            # Pattern 1: /conv 1,600 ngn usd (with commas)
+            pattern1 = r'^([\d,]+(?:\.\d+)?)\s+([a-zA-Z]+)\s+([a-zA-Z]+)$'
             match1 = re.match(pattern1, text, re.IGNORECASE)
             
             if match1:
-                amount = float(match1.group(1))
+                amount = float(match1.group(1).replace(',', ''))
                 from_curr = match1.group(2).lower()
                 to_curr = match1.group(3).lower()
                 return amount, from_curr, to_curr
             
-            # Pattern 2: /conv 1600ngn usd
-            pattern2 = r'^(\d+(?:\.\d+)?)([a-zA-Z]+)\s+([a-zA-Z]+)$'
+            # Pattern 2: /conv 1,600ngn usd (with commas)
+            pattern2 = r'^([\d,]+(?:\.\d+)?)([a-zA-Z]+)\s+([a-zA-Z]+)$'
             match2 = re.match(pattern2, text, re.IGNORECASE)
             
             if match2:
-                amount = float(match2.group(1))
+                amount = float(match2.group(1).replace(',', ''))
                 from_curr = match2.group(2).lower()
                 to_curr = match2.group(3).lower()
                 return amount, from_curr, to_curr
             
-            # Pattern 3: /conv 1600 ngn (default to USD)
-            pattern3 = r'^(\d+(?:\.\d+)?)\s+([a-zA-Z]+)$'
+            # Pattern 3: /conv 1,600 ngn (default based on currency type)
+            pattern3 = r'^([\d,]+(?:\.\d+)?)\s+([a-zA-Z]+)$'
             match3 = re.match(pattern3, text, re.IGNORECASE)
             
             if match3:
-                amount = float(match3.group(1))
+                amount = float(match3.group(1).replace(',', ''))
                 from_curr = match3.group(2).lower()
-                to_curr = 'usd'
+                # Determine default target currency based on source currency type
+                _, from_type = self.normalize_currency(from_curr)
+                if from_type == 'crypto':
+                    to_curr = 'usdt'  # Default crypto to USDT
+                else:
+                    to_curr = 'usd'   # Default fiat to USD
                 return amount, from_curr, to_curr
             
-            # Pattern 4: /conv 1600ngn (default to USD)
-            pattern4 = r'^(\d+(?:\.\d+)?)([a-zA-Z]+)$'
+            # Pattern 4: /conv 1,600ngn (default based on currency type)
+            pattern4 = r'^([\d,]+(?:\.\d+)?)([a-zA-Z]+)$'
             match4 = re.match(pattern4, text, re.IGNORECASE)
             
             if match4:
-                amount = float(match4.group(1))
+                amount = float(match4.group(1).replace(',', ''))
                 from_curr = match4.group(2).lower()
-                to_curr = 'usd'
+                # Determine default target currency based on source currency type
+                _, from_type = self.normalize_currency(from_curr)
+                if from_type == 'crypto':
+                    to_curr = 'usdt'  # Default crypto to USDT
+                else:
+                    to_curr = 'usd'   # Default fiat to USD
                 return amount, from_curr, to_curr
             
             return None
@@ -301,7 +421,7 @@ class CurrencyConverter:
             logger.error(f"Error in currency conversion: {e}")
             return None
 
-    def format_conversion_result(self, result: dict) -> str:
+    def format_conversion_result(self, result: dict, user_id: str, session_owner_id: str) -> str:
         """Format the conversion result into a professional message"""
         try:
             original = result['original_amount']
@@ -324,14 +444,16 @@ class CurrencyConverter:
             original_str = f"{original:,.2f}" if original >= 1 else f"{original:.8f}".rstrip('0').rstrip('.')
             
             # Create professional response
-            response = f"""
-**💱 CURRENCY CONVERSION**
+            response = f"""**💱FluX𝕏♛ CONVERSION**
 
 **{original_str} {from_curr}** = **{converted_str} {to_curr}**
 
 📊 **Exchange Rate:**
-**1 {from_curr} = {rate_str} {to_curr}**
-            """.strip()
+**1 {from_curr} = {rate_str} {to_curr}**"""
+            
+            if not self.is_owner(user_id, session_owner_id):
+                can_use, usage_left, _ = self.check_user_limits(user_id, session_owner_id)
+                response += f"\n\n⏱️ You can convert again after 30 sec\n📊 You have {usage_left} usage left for today"
             
             return response
             
@@ -342,10 +464,24 @@ class CurrencyConverter:
 # Initialize converter instance
 converter = CurrencyConverter()
 
-async def handle_conversion_command(event):
+
+
+    
+
+async def handle_conversion_command(event, session_owner_id):
     """Handle the /conv command for currency conversion"""
     try:
+        user_id = str(event.sender_id)
         message_text = event.message.message
+        
+        can_use, usage_left, cooldown_remaining = converter.check_user_limits(user_id, session_owner_id)
+        
+        if not can_use:
+            if cooldown_remaining > 0:
+               
+                return
+            elif usage_left == 0:
+                return
         
         # Parse the conversion command
         parsed = converter.parse_conversion_command(message_text)
@@ -357,7 +493,8 @@ async def handle_conversion_command(event):
                 "• `/conv 1600 ngn usd`\n"
                 "• `/conv 1600ngn usd`\n"
                 "• `/conv 0.5 btc eth`\n"
-                "• `/conv 100 usd` (converts to USD by default)\n\n"
+                "• `/conv 100 usd` (converts to USD by default)\n"
+                "• `/conv 2 ton` (converts to USDT by default)\n\n"
                 "💡 **Supported:** Crypto ↔ Crypto, Crypto ↔ Fiat, Fiat ↔ Fiat"
             )
             return
@@ -371,8 +508,11 @@ async def handle_conversion_command(event):
         result = await converter.convert_currency(amount, from_curr, to_curr)
         
         if result:
+            # Update user usage
+            converter.update_user_usage(user_id, session_owner_id)
+            
             # Format and send result
-            formatted_result = converter.format_conversion_result(result)
+            formatted_result = converter.format_conversion_result(result, user_id, session_owner_id)
             await processing_msg.edit(formatted_result)
         else:
             await processing_msg.edit(
@@ -393,4 +533,6 @@ async def handle_conversion_command(event):
             "🔄 Please try again in a moment"
         )
 
+
+# Export the handler function for use in autoreply.py
 __all__ = ['handle_conversion_command', 'converter']
