@@ -1,0 +1,10 @@
+python-telegram-bot
+requests
+telethon
+apscheduler
+python-dotenv
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+aiofiles
