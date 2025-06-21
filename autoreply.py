@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 import time
 
 load_dotenv()
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "devscottreal")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "spidertisesup")
 
 FURL = f"https://t.me/{ADMIN_USERNAME}" 
 active_clients = {}
