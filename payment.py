@@ -3,7 +3,7 @@ from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
 import os
 
 # Admin username for contact button
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "echoFluxxx")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "spidertisesup")
 
 # Crypto payment options with placeholder addresses
 CRYPTO_PAYMENTS = {
